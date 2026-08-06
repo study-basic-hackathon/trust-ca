@@ -1,0 +1,313 @@
+{
+    "root": {
+        "data": {
+            "id": "dkhurfum20w0",
+            "created": 1786018621646,
+            "text": "20260806"
+        },
+        "children": [
+            {
+                "data": {
+                    "id": "dkhuuoieh3s0",
+                    "created": 1786018875591,
+                    "text": "システムの構成",
+                    "layout_right_offset": {
+                        "x": 116,
+                        "y": -209
+                    }
+                },
+                "children": [
+                    {
+                        "data": {
+                            "id": "dkhuux7gwts0",
+                            "created": 1786018894521,
+                            "text": "フロント",
+                            "layout_right_offset": {
+                                "x": 31,
+                                "y": -40
+                            },
+                            "expandState": "expand"
+                        },
+                        "children": [
+                            {
+                                "data": {
+                                    "id": "dkhux47yqe80",
+                                    "created": 1786019066517,
+                                    "text": "どっちか",
+                                    "expandState": "expand"
+                                },
+                                "children": [
+                                    {
+                                        "data": {
+                                            "id": "dkhuvrn81c00",
+                                            "created": 1786018960777,
+                                            "text": "firebase"
+                                        },
+                                        "children": []
+                                    },
+                                    {
+                                        "data": {
+                                            "id": "dkhuv7pxf400",
+                                            "created": 1786018917405,
+                                            "text": "GCP"
+                                        },
+                                        "children": []
+                                    }
+                                ]
+                            },
+                            {
+                                "data": {
+                                    "id": "dkhux96d8m80",
+                                    "created": 1786019077304,
+                                    "text": "Next.js"
+                                },
+                                "children": []
+                            }
+                        ]
+                    },
+                    {
+                        "data": {
+                            "id": "dkhuuz7l2s80",
+                            "created": 1786018898882,
+                            "text": "バック",
+                            "layout_right_offset": {
+                                "x": 51,
+                                "y": -40
+                            },
+                            "expandState": "expand"
+                        },
+                        "children": [
+                            {
+                                "data": {
+                                    "id": "dkhuwhuirhk0",
+                                    "created": 1786019017815,
+                                    "text": "GCP"
+                                },
+                                "children": [
+                                    {
+                                        "data": {
+                                            "id": "dkhuwkh26r40",
+                                            "created": 1786019023531,
+                                            "text": "CloudRun"
+                                        },
+                                        "children": []
+                                    }
+                                ]
+                            },
+                            {
+                                "data": {
+                                    "id": "dkhuwnm37wo0",
+                                    "created": 1786019030366,
+                                    "text": "ts（hono, NestJSとか）"
+                                },
+                                "children": []
+                            }
+                        ]
+                    },
+                    {
+                        "data": {
+                            "id": "dkhuv1g9b880",
+                            "created": 1786018903760,
+                            "text": "DB",
+                            "layout_right_offset": {
+                                "x": 76,
+                                "y": -27
+                            }
+                        },
+                        "children": [
+                            {
+                                "data": {
+                                    "id": "dkhuxhem9zk0",
+                                    "created": 1786019095217,
+                                    "text": "CloudSQL"
+                                },
+                                "children": []
+                            }
+                        ]
+                    },
+                    {
+                        "data": {
+                            "id": "dkhuykeqngo0",
+                            "created": 1786019180119,
+                            "text": "ローカル開発",
+                            "layout_right_offset": {
+                                "x": 93,
+                                "y": -22
+                            }
+                        },
+                        "children": [
+                            {
+                                "data": {
+                                    "id": "dkhuyogh6x40",
+                                    "created": 1786019188932,
+                                    "text": "Docker-compose"
+                                },
+                                "children": []
+                            }
+                        ]
+                    },
+                    {
+                        "data": {
+                            "id": "dkhuz4men6o0",
+                            "created": 1786019224119,
+                            "text": "コーディングエージェント",
+                            "layout_right_offset": {
+                                "x": 120,
+                                "y": -5
+                            }
+                        },
+                        "children": [
+                            {
+                                "data": {
+                                    "id": "dkhuzah4h140",
+                                    "created": 1786019236860,
+                                    "text": "ClaudeCode"
+                                },
+                                "children": []
+                            }
+                        ]
+                    },
+                    {
+                        "data": {
+                            "id": "dkhv24b3v080",
+                            "created": 1786019458528,
+                            "text": "インフラ構築",
+                            "layout_right_offset": {
+                                "x": 5,
+                                "y": 1
+                            }
+                        },
+                        "children": [
+                            {
+                                "data": {
+                                    "id": "dkhv2fer8ts0",
+                                    "created": 1786019482693,
+                                    "text": "王さんのGCP環境を使う"
+                                },
+                                "children": []
+                            },
+                            {
+                                "data": {
+                                    "id": "dkhv2m0nua80",
+                                    "created": 1786019497078,
+                                    "text": "ymlなどで後からコード化"
+                                },
+                                "children": []
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "data": {
+                    "id": "dkhuzg28ycw0",
+                    "created": 1786019249021,
+                    "text": "主な機能",
+                    "expandState": "expand",
+                    "layout_right_offset": {
+                        "x": 60,
+                        "y": -52
+                    }
+                },
+                "children": [
+                    {
+                        "data": {
+                            "id": "dkhutoas8ps0",
+                            "created": 1786018796766,
+                            "text": "eKYCを使った販売者登録フロー"
+                        },
+                        "children": []
+                    },
+                    {
+                        "data": {
+                            "id": "dkhuzr6f0tk0",
+                            "created": 1786019273218,
+                            "text": "基本的なカードの販売機能"
+                        },
+                        "children": []
+                    },
+                    {
+                        "data": {
+                            "id": "dkhuse2bxio0",
+                            "created": 1786018696123,
+                            "text": "カードの本物かどうかのチェック"
+                        },
+                        "children": [
+                            {
+                                "data": {
+                                    "id": "dkhuskdsxu00",
+                                    "created": 1786018709878,
+                                    "text": "PSAあり"
+                                },
+                                "children": [
+                                    {
+                                        "data": {
+                                            "id": "dkhuspedrwo0",
+                                            "created": 1786018720797,
+                                            "text": "PSAのAPIを使う"
+                                        },
+                                        "children": []
+                                    }
+                                ]
+                            },
+                            {
+                                "data": {
+                                    "id": "dkhusmqf8lc0",
+                                    "created": 1786018714994,
+                                    "text": "PSAなし"
+                                },
+                                "children": [
+                                    {
+                                        "data": {
+                                            "id": "dkhut1qvz1s0",
+                                            "created": 1786018747674,
+                                            "text": "Googleのvision apiで四隅などを撮影して届いてから同一かを検証する"
+                                        },
+                                        "children": []
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "data": {
+                            "id": "dkhurj0699s0",
+                            "created": 1786018628513,
+                            "text": "ブロックチェーン活用"
+                        },
+                        "children": [
+                            {
+                                "data": {
+                                    "id": "dkhurpszk9k0",
+                                    "created": 1786018643316,
+                                    "text": "やりとりの情報を非同期でブロックチェーンに書き込む"
+                                },
+                                "children": [
+                                    {
+                                        "data": {
+                                            "id": "dkhus03049c0",
+                                            "created": 1786018665689,
+                                            "text": "改竄できないメリットあり"
+                                        },
+                                        "children": []
+                                    }
+                                ]
+                            },
+                            {
+                                "data": {
+                                    "id": "dkhus3yo4jc0",
+                                    "created": 1786018674134,
+                                    "text": "やりとりをJPYCなどの仮想通貨を使って行う"
+                                },
+                                "children": []
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    "template": "right",
+    "theme": "fresh-blue",
+    "version": "1.4.43"
+}
