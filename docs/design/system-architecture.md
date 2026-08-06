@@ -30,7 +30,7 @@ MTGでの決定・合意事項をそのまま起点とする。「未確定」�
 | バックエンド言語 | TypeScript | 確定 |
 | バックエンドフレームワーク | Hono または NestJS 系統 | **未確定**(候補のみ) |
 | バックエンド実行基盤 | GCP Cloud Run | 確定 |
-| DB | GCP CloudSQL | 確定 |
+| DB | GCP CloudSQL(王さんの環境に既存のインスタンスを流用、追加コストなし) | 確定 |
 | ローカル開発環境 | Docker Compose | 確定 |
 | コーディングエージェント | Claude Code | 確定 |
 | インフラ環境 | 王さんの既存GCP環境を間借りする | 確定(ただしプロジェクト分離方針は未確定) |
@@ -257,7 +257,7 @@ MTGでDocker Composeでのローカル開発が合意された。目標構成は
 |---|---|---|
 | `frontend` | Next.js(`next dev`) | ポート例: 3000 |
 | `backend` | Hono/NestJS API | ポート例: 8080。CloudSQLの代わりにローカルの`db`サービスに接続 |
-| `db` | PostgreSQL(またはMySQL) | CloudSQLのエンジンに合わせる(未確定、9節参照) |
+| `db` | PostgreSQL(またはMySQL) | 王さんの環境の既存CloudSQLインスタンスのエンジンに合わせる(要確認、9節参照) |
 
 現行の`ekyc/`は単体で`pnpm dev`から動くため、Docker Compose化は「バックエンド分離」(4.3節 Step1)以降に着手するのが自然な順序である。
 
@@ -267,7 +267,7 @@ MTGでDocker Composeでのローカル開発が合意された。目標構成は
 
 - **GCPプロジェクト**: 王さんの既存GCP環境を間借りする(MTG決定)。ただし、課金・IAM権限の分離方針(専用のGCPプロジェクトを新規に切るか、既存プロジェクト内にリソースを追加するか)は未確定 — 9節参照。
 - **Cloud Run**: バックエンドAPI(Hono/NestJS)をコンテナとしてデプロイ。Webhook受信(Didit等)に必要な公開URLを標準で持つ。
-- **CloudSQL**: Cloud Runからは Cloud SQL Auth Proxy / Cloud SQL言語コネクタ経由で接続する。
+- **CloudSQL**: 新規にインスタンスを立てるのではなく、王さんの環境に既に立っているCloudSQLインスタンスを流用する(追加コストが発生しないための判断)。そのため**DBエンジン(PostgreSQL/MySQL)は選択の余地がなく、既存インスタンスがどちらで動いているかを確認する作業になる** — 9節参照。Cloud Runからは Cloud SQL Auth Proxy / Cloud SQL言語コネクタ経由で接続する。
 - **Secret Manager**: `DIDIT_API_KEY`・`DIDIT_WEBHOOK_SECRET_KEY`・PSA APIキー・Google Vision認証情報・(将来)ブロックチェーンのRPCキーやウォレット鍵を保管し、ブラウザには一切渡さない(README 4.5節の方針を踏襲)。
 - **IaC**: MTGの合意通り、まず手動構築(GCPコンソール/`gcloud` CLI)で動くものを作り、後からyml等(Cloud Runサービス定義yaml、Terraform等)でコード化する。ツール選定は9節の未決定事項。
 
@@ -292,7 +292,7 @@ MTGの時点で結論が出ていない項目を一覧化する。実装着手�
 |---|---|---|---|
 | 1 | フロントエンドのホスティング先 | Firebase Hosting / GCP(Cloud Run等) | SSR要否、CDN・ドメイン管理の要件 |
 | 2 | バックエンドフレームワーク | Hono / NestJS | 開発速度優先(Hono)か構造・DI優先(NestJS)か |
-| 3 | CloudSQLのDBエンジン | PostgreSQL / MySQL | チーム習熟度、既存スキーマとの親和性 |
+| 3 | CloudSQLのDBエンジン | PostgreSQL / MySQL(選択ではなく確認) | 王さんの環境に既存のCloudSQLインスタンスを流用する予定(追加コスト回避のため)。新規に選ぶのではなく、既存インスタンスがどちらのエンジンかを確認する |
 | 4 | GCPプロジェクトの分離方針 | 既存プロジェクトに相乗り / 専用プロジェクトを新規作成 | 王さんの環境の課金・IAM制約 |
 | 5 | IaCツール | Terraform / Cloud Run yamlのみ / その他 | チームの習熟度、導入タイミング |
 | 6 | ブロックチェーンのチェーン選定 | 未定(JPYC対応チェーンとの整合が必要) | JPYC決済(5.4.2)を実施するかどうか |
