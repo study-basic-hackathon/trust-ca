@@ -2,7 +2,7 @@
 
 **基準日: 2026年8月6日**
 
-[README.md](../README.md) 3.2節のシーケンス図は、Diditとの通信だけを切り出した図である。本書はそれを内包しつつ、**販売者登録の開始から出品可否が確定するまでの全体像**を描く。特に、Diditの判定だけでは決着しない `in_review` / 未知ステータスをどう解消するか(=運営者による人手審査)を明確化する。
+[README.md](../../README.md) 3.2節のシーケンス図は、Diditとの通信だけを切り出した図である。本書はそれを内包しつつ、**販売者登録の開始から出品可否が確定するまでの全体像**を描く。特に、Diditの判定だけでは決着しない `in_review` / 未知ステータスをどう解消するか(=運営者による人手審査)を明確化する。
 
 対象読者: この実装(`ekyc/`)に手を入れる開発者、デモの審査フローを設計する担当者。
 
@@ -121,18 +121,18 @@ stateDiagram-v2
 
 | 段階 | 内容 | 状況 | 該当ファイル |
 |---|---|---|---|
-| 販売者登録 | 表示名でseller作成 | ✅ | [sellers/route.ts](../ekyc/src/app/api/sellers/route.ts) |
-| KYCセッション作成 | Didit `/v3/session/` 呼び出し | ✅ | [kyc/session/route.ts](../ekyc/src/app/api/kyc/session/route.ts), [client.ts](../ekyc/src/lib/didit/client.ts) |
+| 販売者登録 | 表示名でseller作成 | ✅ | [sellers/route.ts](../../ekyc/src/app/api/sellers/route.ts) |
+| KYCセッション作成 | Didit `/v3/session/` 呼び出し | ✅ | [kyc/session/route.ts](../../ekyc/src/app/api/kyc/session/route.ts), [client.ts](../../ekyc/src/lib/didit/client.ts) |
 | Hosted Flow | 身分証・ライブネス・顔照合(Didit側) | ✅(外部サービス) | — |
-| callback | ブラウザ結果は不信、`refresh=1` を叩くだけ | ✅ | [callback/page.tsx](../ekyc/src/app/callback/page.tsx) |
-| Webhook受信・署名検証 | V2→Simple→raw、±300秒、無効は401+監査ログ | ✅ | [webhooks/didit/route.ts](../ekyc/src/app/api/webhooks/didit/route.ts), [signature.ts](../ekyc/src/lib/didit/signature.ts) |
-| ポーリング | `in_progress`中5秒ごとにdecision取得 | ✅ | [kyc/status/route.ts](../ekyc/src/app/api/kyc/status/route.ts), [page.tsx](../ekyc/src/app/page.tsx) |
-| ステータス正規化 | 10種→7種、未知は`in_review`にフェイルセーフ | ✅ | [normalize.ts](../ekyc/src/lib/didit/normalize.ts) |
-| DB保存(PIIなし)+監査証跡 | seller_verifications / verification_events / webhook_logs | ✅ | [db.ts](../ekyc/src/lib/db.ts) |
-| フロー可視化 | ステッパー+タイムライン(販売者向け) | ✅ | [FlowStepper.tsx](../ekyc/src/components/FlowStepper.tsx), [EventTimeline.tsx](../ekyc/src/components/EventTimeline.tsx), [flow/page.tsx](../ekyc/src/app/flow/page.tsx) |
+| callback | ブラウザ結果は不信、`refresh=1` を叩くだけ | ✅ | [callback/page.tsx](../../ekyc/src/app/callback/page.tsx) |
+| Webhook受信・署名検証 | V2→Simple→raw、±300秒、無効は401+監査ログ | ✅ | [webhooks/didit/route.ts](../../ekyc/src/app/api/webhooks/didit/route.ts), [signature.ts](../../ekyc/src/lib/didit/signature.ts) |
+| ポーリング | `in_progress`中5秒ごとにdecision取得 | ✅ | [kyc/status/route.ts](../../ekyc/src/app/api/kyc/status/route.ts), [page.tsx](../../ekyc/src/app/page.tsx) |
+| ステータス正規化 | 10種→7種、未知は`in_review`にフェイルセーフ | ✅ | [normalize.ts](../../ekyc/src/lib/didit/normalize.ts) |
+| DB保存(PIIなし)+監査証跡 | seller_verifications / verification_events / webhook_logs | ✅ | [db.ts](../../ekyc/src/lib/db.ts) |
+| フロー可視化 | ステッパー+タイムライン(販売者向け) | ✅ | [FlowStepper.tsx](../../ekyc/src/components/FlowStepper.tsx), [EventTimeline.tsx](../../ekyc/src/components/EventTimeline.tsx), [flow/page.tsx](../../ekyc/src/app/flow/page.tsx) |
 | **運営者による人手審査**(in_review解消) | 管理画面・承認/却下API | ⬜ **未実装** | なし |
 | 条件付き承認(金額上限・出品数制限) | approved後の制限(README 2.1原則4) | ⬜ 未実装(設計書のみ) | なし |
-| 再申請の回数制限 | declinedやin_review後の再チャレンジ | ⬜ 未制限(「本人確認をやり直す」ボタンで何度でも新規セッション作成可) | [page.tsx](../ekyc/src/app/page.tsx) の `handleStartKyc` |
+| 再申請の回数制限 | declinedやin_review後の再チャレンジ | ⬜ 未制限(「本人確認をやり直す」ボタンで何度でも新規セッション作成可) | [page.tsx](../../ekyc/src/app/page.tsx) の `handleStartKyc` |
 
 ---
 
@@ -163,6 +163,6 @@ stateDiagram-v2
 
 ## 6. 関連ドキュメント
 
-- [README.md](../README.md) — eKYC設計の全体(5層信頼モデル、Didit採用理由、本番移行方針)
-- [ekyc/README.md](../ekyc/README.md) — `ekyc/` の実装セットアップ手順
-- [docs/trustca-market-research.md](./trustca-market-research.md) — 競合調査(事前型審査というポジショニングの根拠)
+- [README.md](../../README.md) — eKYC設計の全体(5層信頼モデル、Didit採用理由、本番移行方針)
+- [ekyc/README.md](../../ekyc/README.md) — `ekyc/` の実装セットアップ手順
+- [docs/research/trustca-market-research.md](../research/trustca-market-research.md) — 競合調査(事前型審査というポジショニングの根拠)
