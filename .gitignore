@@ -11,6 +11,9 @@ node_modules/
 out/
 build/
 
+# backend build output
+dist/
+
 # local databases
 data/
 *.db
