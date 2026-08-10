@@ -13,6 +13,7 @@
 | [docs/design/system-architecture.md](docs/design/system-architecture.md) | システムアーキテクチャ設計書。フロント/バックエンド構成、インフラ、機能ごとのアーキテクチャ、未決定事項 |
 | [docs/design/ekyc-design.md](docs/design/ekyc-design.md) | eKYC設計書。5層信頼モデル、Didit採用理由、ステータス正規化、本番移行方針 |
 | [docs/design/seller-onboarding-review-flow.md](docs/design/seller-onboarding-review-flow.md) | 販売者登録〜審査の全体フロー(運営者による人手審査を含む) |
+| [docs/design/folder-structure.md](docs/design/folder-structure.md) | `frontend/`・`backend/`それぞれの新規ファイルの配置ルール |
 | [docs/research/trustca-market-research.md](docs/research/trustca-market-research.md) | 競合調査・ギャップ分析 |
 | [docs/mtg/](docs/mtg/) | 定例MTGの議事録(マインドマップ) |
 
@@ -63,5 +64,6 @@ docker compose up
 - バックエンド: TypeScript(Hono) / Cloud Run — 業務ロジックを一元化
 - DB: GCP CloudSQL(PostgreSQL、王さんの環境の既存インスタンスを流用)
 - ローカル開発: Docker Compose
+- 仕様駆動開発: [GitHub spec-kit](https://github.com/github/spec-kit)を導入(`.claude/skills/speckit-*`)。機能追加時は`/speckit-specify` → `/speckit-plan` → `/speckit-tasks` → `/speckit-implement`の流れを使う
 
 未決定事項(フロントエンドのホスティング先の最終確定、GCPプロジェクト構成など)は[システムアーキテクチャ設計書 9節](docs/design/system-architecture.md#9-未決定事項一覧)を参照。
