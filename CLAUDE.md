@@ -54,26 +54,23 @@ pnpm vitest run --coverage   # src/lib/**に80%の閾値を強制
 
 ## アーキテクチャ
 
-**業務ロジックはすべてbackendが持ち、frontendは持たない。** これはNext.jsのデフォルトの使い方とは異なる、意図的な分離である。Server Actionsは意図的に使わず、`frontend/`のサーバー側コードはSSR/画面描画(レンダリング時にbackendからデータを取得する)に限定される。画面表示後のインタラクション(フォーム送信・ポーリング・購入操作等)は、Next.js側のAPI/プロキシ層を経由せず、ブラウザから直接`backend/`を`fetch`で呼ぶ想定。backendのロジックを重複させるServer ActionsやNext.js API routesを追加しないこと。詳細は[docs/design/system-architecture.md §5.1](docs/design/system-architecture.md)を参照。
+**業務ロジックはすべてbackendが持ち、frontendは持たない。** これはNext.jsのデフォルトの使い方とは異なる、意図的な分離である。Server Actionsは意図的に使わず、backendのロジックを重複させるServer ActionsやNext.js API routesを追加しないこと。詳細・配置ルールは[docs/design/system-architecture.md §5.1](docs/design/system-architecture.md)・[docs/design/folder-structure.md §1](docs/design/folder-structure.md)を参照。
 
-**`backend/`のapp/server分割はテスト容易性のため**: `src/app.ts`は`serve()`を呼ばずに設定済みの`Hono`インスタンス(ルーティング+CORS)をexportする。`serve()`を呼ぶのは`src/index.ts`だけ。これによりテストは実ポートを立てずに`app.request(...)`でルートを叩ける — `backend/tests/health.test.ts`が実例で、`../src/db.js`を`vi.mock`でモックしているためPostgresの実接続なしでテストできる。新しいルートを追加する際もこのパターンに従うこと。
+**`backend/`のapp/server分割はテスト容易性のため**: `serve()`を呼ぶのは`src/index.ts`だけ。新しいルートを追加する際もこのパターンに従うこと。詳細は[docs/design/folder-structure.md §2](docs/design/folder-structure.md)・[backend/README.md](backend/README.md)を参照。
 
 **Docker Compose内とスタンドアロン開発でのネットワーキングの違い**: コンテナ同士はComposeのサービス名で到達する(`localhost`ではない) — backendはPostgresを`db:5432`で、frontendのSSR fetchはbackendを`http://backend:8080`で呼ぶ。各アプリの`.env.example`にスタンドアロン開発時のフォールバック値(`localhost`)とCompose経由での注入値の違いをコメントしてある。`backend/src/index.ts`は他コンテナから到達できるよう、loopbackのデフォルトではなく明示的に`0.0.0.0`にバインドしている。
 
-**`poc/ekyc/`は稼働中のコードではなく参照実装。** DiditのeKYC APIを一気通貫で動かした最初の単一プロセスNext.js + SQLiteのプロトタイプである(セッション作成、Webhook署名検証、ステータス正規化、監査証跡)。その業務ロジック — `poc/ekyc/src/lib/didit/{client,normalize,signature}.ts`と`poc/ekyc/src/lib/db.ts` — はフレームワーク非依存なTypeScriptで書かれており、`backend/`への移植元として想定されているが、**その移植はまだ行われていない**(`backend/`は現状`/healthz`ルートのみ)。`poc/ekyc/`に新機能を追加するのではなく、そこからロジックを`backend/`へ移植すること。移行計画は[docs/design/system-architecture.md §4](docs/design/system-architecture.md)を参照。
+**`poc/ekyc/`は稼働中のコードではなく参照実装であり、`backend/`への移植はまだ行われていない**(`backend/`は現状`/healthz`ルートのみ)。`poc/ekyc/`に新機能を追加するのではなく、そこからロジックを`backend/`へ移植すること。差分・移行計画は[docs/design/system-architecture.md §4](docs/design/system-architecture.md)を参照。
 
-**eKYC設計から引き継ぐべき設計原則**([docs/design/ekyc-design.md §2.1](docs/design/ekyc-design.md))。新しいbackend機能にも一般化して適用する:
-- サーバー間通信の結果のみを信用する(署名検証済みWebhook、または直接のAPI照会) — ブラウザのリダイレクト/コールバックを何かの証明として信用しない。
-- 必要以上のPIIを保存しない(セッションID・正規化ステータス・各チェック結果は保存するが、氏名・住所・身分証画像等は保存しない)。
-- 外部の未知/未対応のステータスはフェイルセーフ(閉じる)側に倒す(例: Diditの未知ステータスは自動承認ではなく`in_review`に正規化される)。
-- 1つのチェックを通過した(例: eKYC `approved`)からといって無制限の信頼を与えない — 段階的な制限をかけ、実績に応じて緩和する。
+**eKYC設計から引き継ぐべき設計原則**([docs/design/ekyc-design.md §2.1](docs/design/ekyc-design.md)・[docs/design/system-architecture.md §8](docs/design/system-architecture.md))。新しいbackend機能にも一般化して適用する: サーバー間通信の結果のみを信用する/必要以上のPIIを保存しない/未知・未対応のステータスはフェイルセーフ(閉じる)側に倒す/1つのチェック通過で無制限の信頼を与えない。各原則の詳細は上記リンク先を参照。
 
-**データ層**: 本番・ローカルともにPostgreSQL。本番はCloud SQL(既存インスタンスを流用するため、スキーマ/エンジンの新規選定は不要)、Docker Composeのローカル開発では素の`postgres:16-alpine`コンテナを使う。`backend/src/db.ts`が唯一の`pg.Pool`を持ち、`DATABASE_URL`未設定時はimport時にthrowする(最初のクエリで失敗するのではなく、fail fastさせる)。
+**データ層**: 本番・ローカルともにPostgreSQL(本番はCloud SQLの既存インスタンスを流用)。`backend/src/db.ts`が唯一の`pg.Pool`を持ち、`DATABASE_URL`未設定時はimport時にthrowする(fail fast)。インフラ詳細は[docs/design/system-architecture.md §7](docs/design/system-architecture.md)を参照。
 
-**Node/Nextのバージョン**: `backend/`・`frontend/`のDockerfileは`node:24-alpine`に固定。`frontend/`と`poc/ekyc/`はどちらも`next@16.2.12`に固定しており、両方に「このNext.jsのバージョンは学習データと異なる破壊的変更がある」という趣旨の`AGENTS.md`の警告がある。どちらのディレクトリでも見慣れないNext.js APIを使う前に`node_modules/next/dist/docs/`を確認すること。
+**Node/Nextのバージョン**: `backend/`・`frontend/`のDockerfileは`node:24-alpine`に固定。`frontend/`と`poc/ekyc/`はどちらも`next@16.2.12`に固定しており、見慣れないNext.js APIを使う前に`node_modules/next/dist/docs/`を確認すること(詳細は各ディレクトリの`AGENTS.md`)。
 
 ## 変更前に読んでおくべきドキュメント
 
 - [docs/design/system-architecture.md](docs/design/system-architecture.md) — 目標アーキテクチャ、PoCからの移行計画、機能ごとの設計(PSA API/Vision APIによるカード真贋チェック、ブロックチェーン監査証跡)、そして未決定事項の一覧(9節) — 何かが「決定済み」と思い込む前に確認すること。
 - [docs/design/ekyc-design.md](docs/design/ekyc-design.md) — eKYC設計の全体(Didit連携、ステータス正規化表、Webhook署名検証方式)。
 - [docs/design/seller-onboarding-review-flow.md](docs/design/seller-onboarding-review-flow.md) — 販売者登録〜審査の全体シーケンス。未実装の運営者による人手審査フローを含む。
+- [docs/design/folder-structure.md](docs/design/folder-structure.md) — `frontend/`・`backend/`それぞれの新規ファイルの配置ルール(routes/services/db層、型定義の置き場所等)。

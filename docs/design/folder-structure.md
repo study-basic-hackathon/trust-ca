@@ -45,6 +45,7 @@ backend/
 | ルートから呼ばれる業務ロジック(バリデーション・外部API呼び出し等) | `src/services/<リソース名>.ts` | ルートハンドラ本体を薄く保つため、複雑になってきたら切り出す。`poc/ekyc/src/lib/didit/{client,normalize,signature}.ts`が移植元(system-architecture.md §4.2) |
 | DBクエリ | `src/db/<リソース名>.ts` | `src/db.ts`(Pool生成)とは別。Poolを受け取ってクエリを実行する関数群を置く |
 | 外部サービスへの認証情報・設定値の読み取り | `src/env.ts`(未作成。必要になったら新設) | `process.env`への直接アクセスをここに集約する。参考: `poc/ekyc/src/lib/env.ts` |
+| 型定義(ドメイン型・リクエスト/レスポンス型等) | 当面は`routes/`・`services/`内にコロケーション。複数ファイルで共有するようになったら`src/types/<ドメイン名>.ts`に切り出す(未作成。必要になったら新設) | 最初から`types/`を作らない。同じ型を2箇所以上でimportし始めたタイミングで切り出す |
 | テスト | `tests/<対象と同じ相対パス>.test.ts` | `tests/health.test.ts`と同じ構成。DB接続が絡む場合は`vi.mock("../src/db.js", ...)`でモックし、実DBなしで実行できるようにする |
 
 ### 2.3 迷ったときの指針
@@ -80,6 +81,7 @@ frontend/
 | SSR時のbackend fetch処理 | 各`page.tsx`内、または`src/lib/api/<リソース名>.ts`に切り出す | `page.tsx`の`getBackendHealth()`(`frontend/src/app/page.tsx`)が現状唯一の例。同種の処理が増えたら`src/lib/`に切り出す |
 | クライアント側からのbackend直接fetch(フォーム送信・購入操作等) | 各Client Component内、または`src/lib/api/<リソース名>.ts` | Server Actions・Next.js API Routesは経由しない(§1) |
 | 複数画面で使うUI部品 | `src/components/<コンポーネント名>.tsx` | 特定の画面でしか使わないものは`app/`配下のcolocationで置いてよい(Next.js App Routerの標準的な慣習) |
+| 型定義(APIレスポンス型・ドメイン型等) | 当面は使用箇所(`page.tsx`・`lib/api/xxx.ts`等)にコロケーション。複数箇所で共有するようになったら`src/types/<ドメイン名>.ts`に切り出す(未作成。必要になったら新設) | backendと同じ考え方。最初から`types/`を作らない |
 
 ### 3.3 迷ったときの指針
 
