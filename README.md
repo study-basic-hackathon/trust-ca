@@ -64,5 +64,6 @@ docker compose up
 - バックエンド: TypeScript(Hono) / Cloud Run — 業務ロジックを一元化
 - DB: GCP CloudSQL(PostgreSQL、王さんの環境の既存インスタンスを流用)
 - ローカル開発: Docker Compose
+- 仕様駆動開発: [GitHub spec-kit](https://github.com/github/spec-kit)を導入(`.claude/skills/speckit-*`)。機能追加時は`/speckit-specify` → `/speckit-plan` → `/speckit-tasks` → `/speckit-implement`の流れを使う
 
 未決定事項(フロントエンドのホスティング先の最終確定、GCPプロジェクト構成など)は[システムアーキテクチャ設計書 9節](docs/design/system-architecture.md#9-未決定事項一覧)を参照。

@@ -52,6 +52,10 @@ pnpm vitest run
 pnpm vitest run --coverage   # src/lib/**に80%の閾値を強制
 ```
 
+## spec-kit(仕様駆動開発)
+
+[GitHub spec-kit](https://github.com/github/spec-kit)をClaude Code統合で導入済み(`.claude/skills/speckit-*`・`.specify/`)。機能追加時は`/speckit-specify`(仕様作成) → `/speckit-plan`(実装計画) → `/speckit-tasks`(タスク分解) → `/speckit-implement`(実装)の順で使う。必要に応じて`/speckit-clarify`(仕様の曖昧箇所を質問で潰す)・`/speckit-analyze`(仕様/計画/タスク間の整合性チェック)・`/speckit-checklist`を挟む。`.specify/memory/constitution.md`は`/speckit-constitution`が未実行のためテンプレートのまま(全機能で必須の前提ではない)。
+
 ## アーキテクチャ
 
 **業務ロジックはすべてbackendが持ち、frontendは持たない。** これはNext.jsのデフォルトの使い方とは異なる、意図的な分離である。Server Actionsは意図的に使わず、backendのロジックを重複させるServer ActionsやNext.js API routesを追加しないこと。詳細・配置ルールは[docs/design/system-architecture.md §5.1](docs/design/system-architecture.md)・[docs/design/folder-structure.md §1](docs/design/folder-structure.md)を参照。
