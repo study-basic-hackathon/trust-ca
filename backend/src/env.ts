@@ -15,6 +15,27 @@ export type OnchainConfig = {
   internalToken: string;
 };
 
+export type PaymentConfig = {
+  enabled: boolean;
+  rpcUrl: string;
+  chainId: number;
+  chainName: string;
+  tokenAddress: `0x${string}`;
+  expectedSymbol: string;
+  confirmations: number;
+  pollIntervalMs: number;
+  batchSize: number;
+  lockTimeoutSeconds: number;
+  verificationTimeoutSeconds: number;
+  intentLifetimeSeconds: number;
+  workerId: string;
+  sessionSecret: string;
+  sessionTtlSeconds: number;
+  siweDomain: string;
+  siweUri: string;
+  challengeTtlSeconds: number;
+};
+
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const PRIVATE_KEY_PATTERN = /^0x[0-9a-fA-F]{64}$/;
 
@@ -75,5 +96,66 @@ export function getOnchainConfig(): OnchainConfig {
       process.env.ONCHAIN_WORKER_ID?.trim() ||
       `worker-${process.pid}-${Date.now().toString(36)}`,
     internalToken,
+  };
+}
+
+export function getPaymentConfig(): PaymentConfig {
+  const enabled = process.env.PAYMENT_MVP_ENABLED === "true";
+  const rpcUrl = process.env.PAYMENT_RPC_URL?.trim() ?? "";
+  const tokenAddress = process.env.PAYMENT_JPYC_TOKEN_ADDRESS?.trim() ?? "";
+  const sessionSecret = process.env.PAYMENT_SESSION_SECRET?.trim() ?? "";
+  const siweDomain = process.env.PAYMENT_SIWE_DOMAIN?.trim() ?? "";
+  const siweUri = process.env.PAYMENT_SIWE_URI?.trim() ?? "";
+
+  if (enabled) {
+    required("PAYMENT_RPC_URL");
+    required("PAYMENT_JPYC_TOKEN_ADDRESS");
+    required("PAYMENT_SESSION_SECRET");
+    required("PAYMENT_SIWE_DOMAIN");
+    required("PAYMENT_SIWE_URI");
+    if (!ADDRESS_PATTERN.test(tokenAddress)) {
+      throw new Error("PAYMENT_JPYC_TOKEN_ADDRESSの形式が不正です。");
+    }
+    if (sessionSecret.length < 32) {
+      throw new Error("PAYMENT_SESSION_SECRETは32文字以上で指定してください。");
+    }
+    let parsedUri: URL;
+    try {
+      parsedUri = new URL(siweUri);
+    } catch {
+      throw new Error("PAYMENT_SIWE_URIの形式が不正です。");
+    }
+    if (parsedUri.host !== siweDomain) {
+      throw new Error("PAYMENT_SIWE_DOMAINとPAYMENT_SIWE_URIのhostが一致しません。");
+    }
+  }
+
+  return {
+    enabled,
+    rpcUrl,
+    chainId: positiveInteger("PAYMENT_CHAIN_ID", 137),
+    chainName: process.env.PAYMENT_CHAIN_NAME?.trim() || "Polygon",
+    tokenAddress: tokenAddress.toLowerCase() as `0x${string}`,
+    expectedSymbol: process.env.PAYMENT_EXPECTED_SYMBOL?.trim() || "JPYC",
+    confirmations: positiveInteger("PAYMENT_CONFIRMATIONS", 12),
+    pollIntervalMs: positiveInteger("PAYMENT_POLL_INTERVAL_MS", 3_000),
+    batchSize: positiveInteger("PAYMENT_BATCH_SIZE", 5),
+    lockTimeoutSeconds: positiveInteger("PAYMENT_LOCK_TIMEOUT_SECONDS", 120),
+    verificationTimeoutSeconds: positiveInteger(
+      "PAYMENT_VERIFICATION_TIMEOUT_SECONDS",
+      3_600,
+    ),
+    intentLifetimeSeconds: positiveInteger(
+      "PAYMENT_INTENT_LIFETIME_SECONDS",
+      900,
+    ),
+    workerId:
+      process.env.PAYMENT_WORKER_ID?.trim() ||
+      `payment-worker-${process.pid}-${Date.now().toString(36)}`,
+    sessionSecret,
+    sessionTtlSeconds: positiveInteger("PAYMENT_SESSION_TTL_SECONDS", 3_600),
+    siweDomain,
+    siweUri,
+    challengeTtlSeconds: positiveInteger("PAYMENT_CHALLENGE_TTL_SECONDS", 300),
   };
 }

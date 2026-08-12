@@ -14,6 +14,7 @@
 |---|---|
 | [ekyc-design.md](./ekyc-design.md) | eKYC設計そのもの(5層信頼モデル、Didit採用理由、本番移行方針) |
 | [database-schema.md](./database-schema.md) | PostgreSQLのtable、制約、索引、migration、transactional outbox、PII境界 |
+| [jpyc-payment.md](./jpyc-payment.md) | Embedded Wallets、SIWE、JPYC直接送金、非同期receipt検証 |
 | [docs/design/seller-onboarding-review-flow.md](./seller-onboarding-review-flow.md) | 販売者登録〜審査の業務フロー詳細(運営者による人手審査を含む) |
 | [docs/research/trustca-market-research.md](../research/trustca-market-research.md) | 競合調査・ポジショニング(事前型審査というコンセプトの根拠) |
 | **本書** | 上記を実現する**システム構成・インフラ・データ基盤**。8/6 MTGでの技術選定を起点にする |
@@ -247,9 +248,11 @@ flowchart LR
 
 #### 5.4.2 JPYC等の仮想通貨による決済
 
-- 決済はJPYC等のステーブルコインで行う想定。
-- **ウォレット管理方式が未確定**: 購入者・販売者が自己保有ウォレット(MetaMask等)を使う方式と、バックエンドが管理ウォレットを持つ方式では、鍵管理(Secret Manager/KMS利用の要否)・規制対応・実装コストが大きく異なる。9節の未決定事項として扱う。
-- [trustca-market-research.md 5節](../research/trustca-market-research.md)の法務メモにある通り、エスクロー構成は資金決済法の論点があるため、実際の資金を動かす前に**法務確認が必要**。ハッカソンのスコープでは、リスクの低い5.4.1(ハッシュ書き込みによる改竄防止の証跡)を優先し、5.4.2(実決済)はストレッチゴールとして10節に位置づける。
+- Issue #18のMVPでは、MetaMask Embedded Wallets（旧Web3Auth）でwalletを接続し、EIP-4361準拠のSIWEでbackend sessionを発行する。
+- 購入者から販売者へJPYCを直接`transfer`し、Trustcaは秘密鍵・seed phrase・資金を保管しない。
+- browserのtransaction hash申告だけでは支払確定にせず、別workerがreceipt、calldata、`Transfer` event、確定block数を照合する。
+- エスクロー、代理送金、自動返金はMVP対象外であり、導入前に法務・資金管理・contract auditが必要である。
+- 詳細、状態遷移、API、Node-Stayからの移行判断、本番条件は[JPYC決済・ウォレット認証MVP設計書](./jpyc-payment.md)を正とする。
 
 ---
 
@@ -301,8 +304,8 @@ MTGの時点で結論が出ていない項目を一覧化する。実装着手�
 | 3 | 既存Cloud SQL for PostgreSQLの互換性 | major version、database作成権限、接続方式 | PostgreSQL採用は確定。既存instanceを流用できるかを接続前に確認する |
 | 4 | GCPプロジェクトの分離方針 | 既存プロジェクトに相乗り / 専用プロジェクトを新規作成 | 王さんの環境の課金・IAM制約 |
 | 5 | IaCツール | Terraform / Cloud Run yamlのみ / その他 | チームの習熟度、導入タイミング |
-| 6 | ブロックチェーンのチェーン選定 | 未定(JPYC対応チェーンとの整合が必要) | JPYC決済(5.4.2)を実施するかどうか |
-| 7 | ウォレット管理方式 | 自己管理(ユーザーウォレット) / バックエンド管理ウォレット | 5.4.2の実施要否、鍵管理・規制対応コスト |
+| 6 | 本番chain・RPC運用 | JPYC決済MVPの本番候補はPolygon(137)。実deployは未実施 | RPC冗長化、監査anchorと決済のchain統一、gas運用 |
+| 7 | 将来のエスクロー方式 | MVPは自己管理wallet間の直接送金で確定。エスクローは未決定 | 法務、返金、contract audit、upgrade権限 |
 | 8 | PSA Public APIの利用プラン | 無料枠(約1コール/日) / 有料プラン | デモでの想定利用回数 |
 | 9 | 運営者による人手審査画面 | 実装する / デモ台本のみで代替 | [seller-onboarding-review-flow.md 5節](./seller-onboarding-review-flow.md#5-運営者確認フローは必要か)参照 |
 
@@ -326,7 +329,7 @@ ekyc-design.md 4.2節の優先順位に、本書で新たに設計した項目(�
 | 10 | nonce付き所持確認 | ⬜ |
 | 11 | ルールベースRisk Engine・運営者による人手審査画面(`in_review`解消含む) | ⬜ |
 | 12 | 取引情報の非同期ブロックチェーン書き込み(改竄防止) | 🟨 local MVP・E2E実装済み。本番chain / Cloud Tasksは未着手 |
-| 13 | JPYC決済連携(法務確認後・ストレッチ) | ⬜ |
+| 13 | JPYC決済連携(法務確認後・ストレッチ) | 🟨 SIWE・直接送金・非同期receipt検証のlocal MVP/E2E実装済み。本番・法務確認は未着手 |
 | 14 | Docker Composeによるローカル開発環境整備 | ✅ 完了(frontend/backend/dbの基本疎通まで) |
 | 15 | IaC化(yml等) | ⬜ |
 
@@ -336,6 +339,6 @@ ekyc-design.md 4.2節の優先順位に、本書で新たに設計した項目(�
 
 2026-08-06 MTGでの決定は、現行の「Next.js単体+SQLite」PoCを、**フロントエンド/バックエンド分離・Cloud SQL for PostgreSQL・Cloud Run**という構成へ発展させる方向性を示した。既存の`poc/ekyc/`実装(特に`src/lib/didit/`配下)はフレームワーク非依存な設計になっているため移植コストは小さく、DB層とルーティング層の付け替えが移行の中心作業になる。
 
-MTGで新たに合意された「カードの真贋チェック(PSA/Vision APIの二経路)」「ブロックチェーン活用(改竄防止の証跡・JPYC決済)」は、ekyc-design.md既出の5層信頼モデルを土台にしつつ、後者は横断的な新機能として設計した。ただし後者は法務・鍵管理面でリスクが大きいため、ハッカソンではまず改竄防止の証跡書き込みに絞り、実決済はストレッチゴールとすることを推奨する。
+MTGで新たに合意された「カードの真贋チェック(PSA/Vision APIの二経路)」「ブロックチェーン活用(改竄防止の証跡・JPYC決済)」は、ekyc-design.md既出の5層信頼モデルを土台にしつつ、後者は横断的な新機能として設計した。監査anchorとJPYC直接送金はlocal MVPまで検証済みである。本番利用にはRPC・鍵・監視に加え、支払い・返金・エスクローに関する法務と運用の確認が残る。
 
 9節の未決定事項(特にフロントエンドホスティング、既存Cloud SQL instanceの互換性、GCPプロジェクト構成)は、実環境へのデプロイ前にチームで確定させる必要がある。

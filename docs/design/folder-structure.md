@@ -2,7 +2,7 @@
 
 二人で並行して開発するにあたり、新しいファイルをどこに置くか毎回相談しなくて済むように、`frontend/`・`backend/`それぞれの配置ルールを定義する。対象読者はフロントエンド・バックエンドの実装を担当する開発者。
 
-現状(2026年8月10日時点)は`backend/`が`/healthz`のみ、`frontend/`が疎通確認ページのみのスケルトン状態のため、本書は「今あるファイル一覧」ではなく「機能を追加するときにどこに置くか」というルールとして書く。全体のアーキテクチャ方針・移行計画は[system-architecture.md](./system-architecture.md)を参照。
+本書は「機能を追加するときにどこへ置くか」というルールとして書く。2026年8月13日時点ではhealth checkに加えて監査anchorとJPYC決済MVPが実装されている。全体のアーキテクチャ方針・移行計画は[system-architecture.md](./system-architecture.md)を参照。
 
 ---
 
@@ -28,6 +28,7 @@ backend/
 │   ├── test-migrations.mjs # 一時schemaを使う統合テスト
 │   ├── test-onchain-outbox.ts # outboxの実DB統合テスト
 │   ├── test-onchain-e2e.mjs # local chainを含むE2E
+│   ├── test-payment-e2e.mjs # SIWEとJPYC決済を含むE2E
 │   └── lib/migrator.mjs # migration共通処理
 ├── src/
 │   ├── index.ts        # エントリポイント。serve()を呼ぶのはここだけ
@@ -37,7 +38,9 @@ backend/
 │   ├── blockchain/       # EVM client、ABI、chain接続のadapter
 │   ├── routes/           # HTTPルーティング層。エンドポイント単位でファイルを分ける
 │   │   ├── health.ts
-│   │   └── onchain-anchors.ts
+│   │   ├── onchain-anchors.ts
+│   │   ├── wallet-auth.ts
+│   │   └── payments.ts
 │   ├── services/         # 業務ロジック、canonical化、worker orchestration
 │   ├── workers/          # HTTP serverと分離して起動するworker entrypoint
 │   └── db/                # SQLクエリ・スキーマ関連
@@ -102,7 +105,7 @@ frontend/
 
 ### 3.3 迷ったときの指針
 
-- `BACKEND_URL`は環境ごとに値が変わる(Docker Compose内は`http://backend:8080`、スタンドアロンは`http://localhost:8080`)。`frontend/.env.example`のコメント通り、直書きせず`process.env.BACKEND_URL`経由で参照する。
+- SSR用`BACKEND_URL`とbrowser用`NEXT_PUBLIC_BACKEND_URL`は環境ごとに値が変わる。`frontend/.env.example`のコメント通り直書きしない。
 - 見慣れないNext.js APIを使う前に`node_modules/next/dist/docs/`を確認する([CLAUDE.md](../../CLAUDE.md)・`frontend/AGENTS.md`参照。`next@16.2.12`は学習データと異なる破壊的変更がある)。
 
 ---
@@ -125,6 +128,7 @@ blockchain/
 - deploy address、chain ID、operatorをbackend起動時に検証する。
 - local用の公開Hardhat keyを本番networkへ流用しない。
 - contract interface変更時はbackend側ABIとE2Eも同じPRで更新する。
+- `MockJPYC`等のmock contractにはlocal検証専用であることを明記し、本番deploy対象から除外する。
 
 ---
 

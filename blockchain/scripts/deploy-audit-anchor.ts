@@ -3,9 +3,12 @@ import type { Address } from "viem";
 
 const { viem } = await network.create("localhost");
 const [deployer] = await viem.getWalletClients();
+const walletClients = await viem.getWalletClients();
+const buyer = walletClients[1];
 const expectedAddress = process.env.EXPECTED_ANCHOR_CONTRACT?.toLowerCase();
+const expectedJpycAddress = process.env.EXPECTED_JPYC_TOKEN?.toLowerCase();
 
-async function deploy(): Promise<void> {
+async function deployAuditAnchor(): Promise<void> {
   if (expectedAddress) {
     const publicClient = await viem.getPublicClient();
     const bytecode = await publicClient.getCode({
@@ -40,4 +43,47 @@ async function deploy(): Promise<void> {
   console.log(`TrustcaAuditAnchorをデプロイしました: ${contract.address}`);
 }
 
-await deploy();
+async function deployMockJpyc(): Promise<void> {
+  if (!buyer) throw new Error("MockJPYCの初期保有walletが見つかりません。");
+  if (expectedJpycAddress) {
+    const publicClient = await viem.getPublicClient();
+    const bytecode = await publicClient.getCode({
+      address: expectedJpycAddress as Address,
+    });
+    if (bytecode && bytecode !== "0x") {
+      const existing = await viem.getContractAt(
+        "MockJPYC",
+        expectedJpycAddress as Address,
+      );
+      const [symbol, decimals] = await Promise.all([
+        existing.read.symbol(),
+        existing.read.decimals(),
+      ]);
+      if (symbol !== "JPYC" || decimals !== 18) {
+        throw new Error("既存MockJPYCのmetadataが想定外です。");
+      }
+      console.log(`MockJPYCはデプロイ済みです: ${expectedJpycAddress}`);
+      return;
+    }
+  }
+
+  const initialSupply = 1_000_000n * 10n ** 18n;
+  const contract = await viem.deployContract("MockJPYC", [
+    buyer.account.address,
+    initialSupply,
+  ]);
+  if (
+    expectedJpycAddress &&
+    contract.address.toLowerCase() !== expectedJpycAddress
+  ) {
+    throw new Error(
+      `MockJPYC addressが想定外です: expected=${expectedJpycAddress} actual=${contract.address}`,
+    );
+  }
+  console.log(
+    `MockJPYCをデプロイしました: ${contract.address} holder=${buyer.account.address}`,
+  );
+}
+
+await deployAuditAnchor();
+await deployMockJpyc();

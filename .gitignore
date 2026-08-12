@@ -1,5 +1,6 @@
 # dependencies
 node_modules/
+.pnpm-store/
 
 # environment files (API keys — never commit)
 .env
