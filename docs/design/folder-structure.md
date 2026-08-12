@@ -23,6 +23,10 @@
 
 ```
 backend/
+├── scripts/
+│   ├── migrate.mjs     # migration適用・状態確認CLI
+│   ├── test-migrations.mjs # 一時schemaを使う統合テスト
+│   └── lib/migrator.mjs # migration共通処理
 ├── src/
 │   ├── index.ts        # エントリポイント。serve()を呼ぶのはここだけ
 │   ├── app.ts           # Honoインスタンス本体(ルーティング+CORS)。serve()を呼ばない
@@ -30,7 +34,8 @@ backend/
 │   ├── routes/           # HTTPルーティング層。エンドポイント単位でファイルを分ける
 │   │   └── health.ts
 │   ├── services/          # ルーティングから呼ばれる業務ロジック(未作成。機能追加時に新設)
-│   └── db/                # SQLクエリ・スキーマ関連(未作成。機能追加時に新設)
+│   └── db/                # SQLクエリ・スキーマ関連
+│       └── migrations/    # 番号付きSQL migration
 ├── tests/
 │   └── health.test.ts     # `../src/app.js`をapp.request()で叩く。DBはvi.mockでモック
 ├── Dockerfile
@@ -44,6 +49,8 @@ backend/
 | 新しいAPIエンドポイント | `src/routes/<リソース名>.ts` | `health.ts`に倣い、リソース(`sellers`・`cards`等)単位で1ファイル。`app.ts`で`app.route("/", xxxRoute)`のように登録する |
 | ルートから呼ばれる業務ロジック(バリデーション・外部API呼び出し等) | `src/services/<リソース名>.ts` | ルートハンドラ本体を薄く保つため、複雑になってきたら切り出す。`poc/ekyc/src/lib/didit/{client,normalize,signature}.ts`が移植元(system-architecture.md §4.2) |
 | DBクエリ | `src/db/<リソース名>.ts` | `src/db.ts`(Pool生成)とは別。Poolを受け取ってクエリを実行する関数群を置く |
+| DBスキーマ変更 | `src/db/migrations/<4桁version>_<説明>.sql` | 適用済みファイルを編集せず、新しいversionを追加する。`pnpm db:migrate`で適用 |
+| DB運用script | `scripts/` | アプリruntimeへ組み込まないmigration CLI・統合テスト。共通処理は`scripts/lib/`へ置く |
 | 外部サービスへの認証情報・設定値の読み取り | `src/env.ts`(未作成。必要になったら新設) | `process.env`への直接アクセスをここに集約する。参考: `poc/ekyc/src/lib/env.ts` |
 | 型定義(ドメイン型・リクエスト/レスポンス型等) | 当面は`routes/`・`services/`内にコロケーション。複数ファイルで共有するようになったら`src/types/<ドメイン名>.ts`に切り出す(未作成。必要になったら新設) | 最初から`types/`を作らない。同じ型を2箇所以上でimportし始めたタイミングで切り出す |
 | テスト | `tests/<対象と同じ相対パス>.test.ts` | `tests/health.test.ts`と同じ構成。DB接続が絡む場合は`vi.mock("../src/db.js", ...)`でモックし、実DBなしで実行できるようにする |
@@ -52,6 +59,7 @@ backend/
 
 - `src/app.ts`と`src/index.ts`の分割はテスト容易性のためなので崩さない([CLAUDE.md](../../CLAUDE.md)参照)。新しいルートも`app.ts`に集約登録する形を踏襲する。
 - `poc/ekyc/`からロジックを移植する際も、この`routes/` → `services/` → `db/`の3層に当てはめて配置する(`poc/ekyc/`側の`src/lib/`が概ね`services/`、`src/lib/db.ts`が`db/`に対応する)。
+- schemaの正は`src/db/migrations/`に置き、repository内へ`CREATE TABLE`を埋め込まない。詳細は[database-schema.md](./database-schema.md)を参照する。
 
 ---
 

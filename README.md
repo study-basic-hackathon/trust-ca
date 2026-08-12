@@ -11,6 +11,7 @@
 | ドキュメント | 内容 |
 |---|---|
 | [docs/design/system-architecture.md](docs/design/system-architecture.md) | システムアーキテクチャ設計書。フロント/バックエンド構成、インフラ、機能ごとのアーキテクチャ、未決定事項 |
+| [docs/design/database-schema.md](docs/design/database-schema.md) | Cloud SQL for PostgreSQLのスキーマ、ER図、制約、索引、migration・outbox運用 |
 | [docs/design/ekyc-design.md](docs/design/ekyc-design.md) | eKYC設計書。5層信頼モデル、Didit採用理由、ステータス正規化、本番移行方針 |
 | [docs/design/seller-onboarding-review-flow.md](docs/design/seller-onboarding-review-flow.md) | 販売者登録〜審査の全体フロー(運営者による人手審査を含む) |
 | [docs/design/folder-structure.md](docs/design/folder-structure.md) | `frontend/`・`backend/`それぞれの新規ファイルの配置ルール |

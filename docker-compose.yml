@@ -25,13 +25,14 @@ services:
       PORT: 8080
       # `db` はCompose内のサービス名(Dockerのネットワーク越しに解決される)。
       DATABASE_URL: postgresql://postgres:postgres@db:5432/trustca
+      DATABASE_SCHEMA: public
       FRONTEND_ORIGIN: http://localhost:${FRONTEND_PORT:-3000}
     volumes:
       - ./backend:/app
       - /app/node_modules
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test:
         [
@@ -41,6 +42,20 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  migrate:
+    build: ./backend
+    command: ["pnpm", "db:migrate"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/trustca
+      DATABASE_SCHEMA: public
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
 
   frontend:
     build: ./frontend

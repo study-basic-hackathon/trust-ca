@@ -13,6 +13,7 @@
 | ドキュメント | スコープ |
 |---|---|
 | [ekyc-design.md](./ekyc-design.md) | eKYC設計そのもの(5層信頼モデル、Didit採用理由、本番移行方針) |
+| [database-schema.md](./database-schema.md) | PostgreSQLのtable、制約、索引、migration、transactional outbox、PII境界 |
 | [docs/design/seller-onboarding-review-flow.md](./seller-onboarding-review-flow.md) | 販売者登録〜審査の業務フロー詳細(運営者による人手審査を含む) |
 | [docs/research/trustca-market-research.md](../research/trustca-market-research.md) | 競合調査・ポジショニング(事前型審査というコンセプトの根拠) |
 | **本書** | 上記を実現する**システム構成・インフラ・データ基盤**。8/6 MTGでの技術選定を起点にする |
@@ -30,13 +31,13 @@ MTGでの決定・合意事項をそのまま起点とする。「未確定」�
 | バックエンド言語 | TypeScript | 確定 |
 | バックエンドフレームワーク | Hono または NestJS 系統 | **未確定**(候補のみ) |
 | バックエンド実行基盤 | GCP Cloud Run | 確定 |
-| DB | GCP CloudSQL(王さんの環境に既存のインスタンスを流用、追加コストなし) | 確定 |
+| DB | GCP Cloud SQL for PostgreSQL(既存インスタンス流用を第一候補) | PostgreSQLは確定。既存instanceのmajor version・接続可否は要確認 |
 | ローカル開発環境 | Docker Compose | 確定 |
 | コーディングエージェント | Claude Code | 確定 |
 | インフラ環境 | 王さんの既存GCP環境を間借りする | 確定(ただしプロジェクト分離方針は未確定) |
 | IaC | 当面は手動構築、後からyml等でコード化する(順序として後回みで合意) | 確定(順序) |
 
-現行実装(`poc/ekyc/`)はNext.js App RouterのRoute Handlersがバックエンドを兼ね、DBはローカルファイルの`better-sqlite3`である。MTGの決定は「フロントとバックエンドを分離し、DBをマネージドのCloudSQLに寄せる」方向であるため、本書はこの**移行**を軸に構成する(4節)。
+現行実装(`poc/ekyc/`)はNext.js App RouterのRoute Handlersがバックエンドを兼ね、DBはローカルファイルの`better-sqlite3`である。MTGの決定は「フロントとバックエンドを分離し、DBをマネージドのCloud SQLへ寄せる」方向であるため、本書はこの**移行**を軸に構成する(4節)。
 
 ---
 
@@ -57,7 +58,7 @@ flowchart TB
             BE["バックエンドAPI<br/>TypeScript(Hono / NestJS)"]
         end
 
-        DB[(CloudSQL)]
+        DB[(Cloud SQL<br/>for PostgreSQL)]
         SM[Secret Manager<br/>APIキー・Webhookシークレット・鍵]
         Queue[Cloud Tasks / Pub/Sub<br/>非同期ジョブ]
     end
@@ -111,7 +112,7 @@ MTGで合意した「ブロックチェーン活用」(改竄防止の監査証�
 | 観点 | 現行(`poc/ekyc/`) | 目標(MTG決定) | 移行の要否 |
 |---|---|---|---|
 | フロント/バック分離 | Next.js App RouterのRoute Handlersが同居 | Next.js(FE)とTS API(BE, Hono/NestJS)を分離 | 要 |
-| DB | `better-sqlite3`(ローカルファイル、`data/ekyc.db`) | CloudSQL(マネージド) | 要 |
+| DB | `better-sqlite3`(ローカルファイル、`data/ekyc.db`) | Cloud SQL for PostgreSQL(マネージド) | 要 |
 | Webhook到達性 | ローカルでは届かないため`ngrok`が必要 | Cloud Runは常時公開URLを持つため`ngrok`不要 | 移行で解消 |
 | ビジネスロジック | `src/lib/didit/{client,normalize,signature}.ts` | ほぼそのまま移植可能(フレームワーク非依存な純関数群) | 小 |
 | 実行環境 | `next dev` / `next start` | Cloud Run(コンテナ) | 要 |
@@ -121,7 +122,7 @@ MTGで合意した「ブロックチェーン活用」(改竄防止の監査証�
 
 `poc/ekyc/src/lib/didit/`配下(`client.ts`・`normalize.ts`・`signature.ts`)はNext.js固有のAPIに依存しない純粋なTypeScript関数として書かれている。移行時はこれらをほぼそのままバックエンドサービスへ移し、以下の2点だけを書き換えればよい。
 
-1. `src/lib/db.ts`: `better-sqlite3`のクエリをCloudSQL用クライアント(`pg`など)に置き換える。テーブル定義(`sellers` / `seller_verifications` / `webhook_logs` / `verification_events`)はスキーマ設計の土台としてそのまま使える。
+1. `src/lib/db.ts`: `better-sqlite3`のクエリを`pg` repositoryへ置き換える。PoCの4 tableは責務の参考にするが、そのまま複製せず、[database-schema.md 11節](./database-schema.md#11-sqlite-pocからの対応)の対応表に従ってaccount、販売者、Webhook監査を分離する。
 2. `src/app/api/**/route.ts`: Next.js Route HandlerのハンドラをHono/NestJSのルートハンドラに移植する。バリデーション・エラーハンドリングの構造は流用可能。
 
 ### 4.3 移行の進め方(推奨)
@@ -131,7 +132,7 @@ MTGで合意した「ブロックチェーン活用」(改竄防止の監査証�
 ```mermaid
 flowchart LR
     A["現状: Next.js単体<br/>+ SQLite"] --> B["Step1: バックエンドを<br/>Hono/NestJSで分離<br/>(DBはまだSQLiteでも可)"]
-    B --> C["Step2: DBをCloudSQLへ移行"]
+    B --> C["Step2: DBをCloud SQLへ移行"]
     C --> D["Step3: Cloud Runへデプロイ<br/>(BE)"]
     D --> E["Step4: フロントのホスティング先を確定し<br/>デプロイ(FE)"]
     E --> F["Step5: IaC化(yml等)"]
@@ -234,11 +235,11 @@ MTGで挙がった2つの用途を分けて設計する。両者は独立した�
 
 ```mermaid
 flowchart LR
-    Event["取引/審査イベント発生<br/>(例: KYC承認, 出品確定, 決済完了)"] --> DB[(CloudSQLに記録)]
+    Event["取引/審査イベント発生<br/>(例: KYC承認, 出品確定, 決済完了)"] --> DB[(Cloud SQLに記録)]
     DB --> Enqueue[Cloud Tasks / Pub/Subへ<br/>非同期でキューイング]
     Enqueue --> Worker[ワーカー: イベントをハッシュ化]
     Worker --> Chain["ブロックチェーンへ書き込み<br/>(チェーン未確定)"]
-    Chain --> Confirm[トランザクションハッシュを<br/>CloudSQLに記録]
+    Chain --> Confirm[トランザクションハッシュを<br/>Cloud SQLに記録]
 ```
 
 #### 5.4.2 JPYC等の仮想通貨による決済
@@ -256,8 +257,8 @@ MTGでDocker Composeでのローカル開発が合意された。目標構成は
 | サービス | 役割 | 備考 |
 |---|---|---|
 | `frontend` | Next.js(`next dev`) | ポート例: 3000 |
-| `backend` | Hono/NestJS API | ポート例: 8080。CloudSQLの代わりにローカルの`db`サービスに接続 |
-| `db` | PostgreSQL(またはMySQL) | 王さんの環境の既存CloudSQLインスタンスのエンジンに合わせる(要確認、9節参照) |
+| `backend` | Hono/NestJS API | ポート例: 8080。Cloud SQLの代わりにローカルの`db`サービスへ接続 |
+| `db` | PostgreSQL 16 | Cloud SQLの代わりにローカルで利用。one-shotの`migrate` serviceが初期化 |
 
 現行の`poc/ekyc/`は単体で`pnpm dev`から動くため、Docker Compose化は「バックエンド分離」(4.3節 Step1)以降に着手するのが自然な順序である。
 
@@ -267,7 +268,7 @@ MTGでDocker Composeでのローカル開発が合意された。目標構成は
 
 - **GCPプロジェクト**: 王さんの既存GCP環境を間借りする(MTG決定)。ただし、課金・IAM権限の分離方針(専用のGCPプロジェクトを新規に切るか、既存プロジェクト内にリソースを追加するか)は未確定 — 9節参照。
 - **Cloud Run**: バックエンドAPI(Hono/NestJS)をコンテナとしてデプロイ。Webhook受信(Didit等)に必要な公開URLを標準で持つ。
-- **CloudSQL**: 新規にインスタンスを立てるのではなく、王さんの環境に既に立っているCloudSQLインスタンスを流用する(追加コストが発生しないための判断)。そのため**DBエンジン(PostgreSQL/MySQL)は選択の余地がなく、既存インスタンスがどちらで動いているかを確認する作業になる** — 9節参照。Cloud Runからは Cloud SQL Auth Proxy / Cloud SQL言語コネクタ経由で接続する。
+- **Cloud SQL for PostgreSQL**: TrustcaのDBエンジンはPostgreSQLに確定し、`backend/src/db/migrations/`をsource of truthとする。王さんの環境にある既存PostgreSQL instanceの流用を第一候補とするが、major version、database作成権限、接続可否を確認する。互換性がないinstanceをMySQLのまま流用することはせず、構成を再判断する。Cloud RunからはCloud SQL ConnectorまたはCloud RunのCloud SQL接続を利用する。詳細は[database-schema.md](./database-schema.md)を参照。
 - **Secret Manager**: `DIDIT_API_KEY`・`DIDIT_WEBHOOK_SECRET_KEY`・PSA APIキー・Google Vision認証情報・(将来)ブロックチェーンのRPCキーやウォレット鍵を保管し、ブラウザには一切渡さない(ekyc-design.md 4.5節の方針を踏襲)。
 - **IaC**: MTGの合意通り、まず手動構築(GCPコンソール/`gcloud` CLI)で動くものを作り、後からyml等(Cloud Runサービス定義yaml、Terraform等)でコード化する。ツール選定は9節の未決定事項。
 
@@ -292,7 +293,7 @@ MTGの時点で結論が出ていない項目を一覧化する。実装着手�
 |---|---|---|---|
 | 1 | フロントエンドのホスティング先 | Firebase Hosting / GCP(Cloud Run等) | SSR要否、CDN・ドメイン管理の要件 |
 | 2 | バックエンドフレームワーク | Hono / NestJS | 開発速度優先(Hono)か構造・DI優先(NestJS)か |
-| 3 | CloudSQLのDBエンジン | PostgreSQL / MySQL(選択ではなく確認) | 王さんの環境に既存のCloudSQLインスタンスを流用する予定(追加コスト回避のため)。新規に選ぶのではなく、既存インスタンスがどちらのエンジンかを確認する |
+| 3 | 既存Cloud SQL for PostgreSQLの互換性 | major version、database作成権限、接続方式 | PostgreSQL採用は確定。既存instanceを流用できるかを接続前に確認する |
 | 4 | GCPプロジェクトの分離方針 | 既存プロジェクトに相乗り / 専用プロジェクトを新規作成 | 王さんの環境の課金・IAM制約 |
 | 5 | IaCツール | Terraform / Cloud Run yamlのみ / その他 | チームの習熟度、導入タイミング |
 | 6 | ブロックチェーンのチェーン選定 | 未定(JPYC対応チェーンとの整合が必要) | JPYC決済(5.4.2)を実施するかどうか |
@@ -311,7 +312,7 @@ ekyc-design.md 4.2節の優先順位に、本書で新たに設計した項目(�
 | 1 | 販売者登録・eKYC(Didit)・署名付きWebhook | ✅ 完了 |
 | 2 | 販売者ステータス・可視化 | ✅ 完了 |
 | 3 | バックエンド分離(Hono/NestJS) | ⬜(`backend/`のスケルトンのみ作成済み。eKYC業務ロジックの移植は未着手) |
-| 4 | CloudSQLへのDB移行 | ⬜ |
+| 4 | Cloud SQL for PostgreSQLへのDB移行 | 🟨 schema・migration基盤は実装済み。eKYC repository移植と実環境適用は未着手 |
 | 5 | Cloud Runへのデプロイ(BE)・ホスティング確定(FE) | ⬜ |
 | 6 | 基本的なカードの出品・購入機能 | ⬜ |
 | 7 | PSA Public API照会・正規化(PSAあり経路) | ⬜ |
@@ -328,8 +329,8 @@ ekyc-design.md 4.2節の優先順位に、本書で新たに設計した項目(�
 
 ## 11. まとめ
 
-2026-08-06 MTGでの決定は、現行の「Next.js単体+SQLite」PoCを、**フロントエンド/バックエンド分離・CloudSQL・Cloud Run**という構成へ発展させる方向性を示した。既存の`poc/ekyc/`実装(特に`src/lib/didit/`配下)はフレームワーク非依存な設計になっているため移植コストは小さく、DB層とルーティング層の付け替えが移行の中心作業になる。
+2026-08-06 MTGでの決定は、現行の「Next.js単体+SQLite」PoCを、**フロントエンド/バックエンド分離・Cloud SQL for PostgreSQL・Cloud Run**という構成へ発展させる方向性を示した。既存の`poc/ekyc/`実装(特に`src/lib/didit/`配下)はフレームワーク非依存な設計になっているため移植コストは小さく、DB層とルーティング層の付け替えが移行の中心作業になる。
 
 MTGで新たに合意された「カードの真贋チェック(PSA/Vision APIの二経路)」「ブロックチェーン活用(改竄防止の証跡・JPYC決済)」は、ekyc-design.md既出の5層信頼モデルを土台にしつつ、後者は横断的な新機能として設計した。ただし後者は法務・鍵管理面でリスクが大きいため、ハッカソンではまず改竄防止の証跡書き込みに絞り、実決済はストレッチゴールとすることを推奨する。
 
-9節の未決定事項(特にフレームワーク・DBエンジン・GCPプロジェクト構成)は、実装着手前にチームで確定させる必要がある。
+9節の未決定事項(特にフロントエンドホスティング、既存Cloud SQL instanceの互換性、GCPプロジェクト構成)は、実環境へのデプロイ前にチームで確定させる必要がある。
