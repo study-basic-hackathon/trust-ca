@@ -232,14 +232,17 @@ MTGで挙がった2つの用途を分けて設計する。両者は独立した�
 
 - 目的: 取引・審査結果などの重要イベントのハッシュをブロックチェーンに刻み、後から改竄できないことを証跡として示す。
 - **同期処理には組み込まない**(ekyc-design.md原則1「サーバー間通信のみを信用する」と同じ発想で、ブロックチェーン書き込みの遅延・失敗が主要フローをブロックしてはならない)。
+- MVPの実装契約、再試行、contract、本番Cloud Tasks移行は[取引情報の非同期オンチェーン記録設計書](./async-onchain-write.md)を正とする。
 
 ```mermaid
 flowchart LR
-    Event["取引/審査イベント発生<br/>(例: KYC承認, 出品確定, 決済完了)"] --> DB[(Cloud SQLに記録)]
-    DB --> Enqueue[Cloud Tasks / Pub/Subへ<br/>非同期でキューイング]
-    Enqueue --> Worker[ワーカー: イベントをハッシュ化]
-    Worker --> Chain["ブロックチェーンへ書き込み<br/>(チェーン未確定)"]
-    Chain --> Confirm[トランザクションハッシュを<br/>Cloud SQLに記録]
+    Event["取引/審査イベント発生<br/>(例: KYC承認, 出品確定, 決済完了)"] --> Hash[canonical化 + SHA-256]
+    Hash -->|同一transaction| Audit[(audit_events)]
+    Hash -->|同一transaction| Outbox[(onchain_outbox)]
+    Worker[非同期worker] -->|claim / retry| Outbox
+    Worker --> Chain["監査contractへhashを書き込み"]
+    Chain --> Receipt[receipt / block確定]
+    Receipt --> Outbox
 ```
 
 #### 5.4.2 JPYC等の仮想通貨による決済
@@ -252,13 +255,15 @@ flowchart LR
 
 ## 6. ローカル開発環境(Docker Compose)
 
-MTGでDocker Composeでのローカル開発が合意された。目標構成は以下の3コンテナを想定する(バックエンド分離後)。
+MTGでDocker Composeでのローカル開発が合意された。通常開発は以下の3 serviceを中心とし、初期化用`migrate`をone-shotで実行する。
 
 | サービス | 役割 | 備考 |
 |---|---|---|
 | `frontend` | Next.js(`next dev`) | ポート例: 3000 |
 | `backend` | Hono/NestJS API | ポート例: 8080。Cloud SQLの代わりにローカルの`db`サービスへ接続 |
 | `db` | PostgreSQL 16 | Cloud SQLの代わりにローカルで利用。one-shotの`migrate` serviceが初期化 |
+
+`blockchain` profileを指定した場合は、Hardhat local nodeの`chain`、contract deploy用`chain-deploy`、outbox配送用`worker-onchain`を追加起動する。
 
 現行の`poc/ekyc/`は単体で`pnpm dev`から動くため、Docker Compose化は「バックエンド分離」(4.3節 Step1)以降に着手するのが自然な順序である。
 
@@ -320,7 +325,7 @@ ekyc-design.md 4.2節の優先順位に、本書で新たに設計した項目(�
 | 9 | Cert番号重複検知(DBユニーク制約) | ⬜ |
 | 10 | nonce付き所持確認 | ⬜ |
 | 11 | ルールベースRisk Engine・運営者による人手審査画面(`in_review`解消含む) | ⬜ |
-| 12 | 取引情報の非同期ブロックチェーン書き込み(改竄防止) | ⬜ |
+| 12 | 取引情報の非同期ブロックチェーン書き込み(改竄防止) | 🟨 local MVP・E2E実装済み。本番chain / Cloud Tasksは未着手 |
 | 13 | JPYC決済連携(法務確認後・ストレッチ) | ⬜ |
 | 14 | Docker Composeによるローカル開発環境整備 | ✅ 完了(frontend/backend/dbの基本疎通まで) |
 | 15 | IaC化(yml等) | ⬜ |

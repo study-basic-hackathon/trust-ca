@@ -27,6 +27,13 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/trustca
       DATABASE_SCHEMA: public
       FRONTEND_ORIGIN: http://localhost:${FRONTEND_PORT:-3000}
+      ONCHAIN_MVP_ENABLED: ${ONCHAIN_MVP_ENABLED:-false}
+      ONCHAIN_RPC_URL: http://chain:8545
+      ONCHAIN_CHAIN_ID: 31337
+      ONCHAIN_CHAIN_NAME: Trustca Local
+      ONCHAIN_ANCHOR_CONTRACT: ${ONCHAIN_ANCHOR_CONTRACT:-0x5fbdb2315678afecb367f032d93f642f64180aa3}
+      ONCHAIN_OPERATOR_PRIVATE_KEY: ${ONCHAIN_OPERATOR_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
+      ONCHAIN_INTERNAL_TOKEN: ${ONCHAIN_INTERNAL_TOKEN:-local-onchain-internal-token-change-me}
     volumes:
       - ./backend:/app
       - /app/node_modules
@@ -56,6 +63,67 @@ services:
       db:
         condition: service_healthy
     restart: "no"
+
+  chain:
+    profiles: ["blockchain"]
+    build: ./blockchain
+    command: ["pnpm", "node"]
+    ports:
+      - "${CHAIN_RPC_PORT:-8545}:8545"
+    volumes:
+      - ./blockchain:/app
+      - /app/node_modules
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://localhost:8545',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',method:'eth_chainId',params:[],id:1})}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  chain-deploy:
+    profiles: ["blockchain"]
+    build: ./blockchain
+    command: ["pnpm", "deploy:local"]
+    environment:
+      LOCALHOST_RPC_URL: http://chain:8545
+      EXPECTED_ANCHOR_CONTRACT: ${ONCHAIN_ANCHOR_CONTRACT:-0x5fbdb2315678afecb367f032d93f642f64180aa3}
+    volumes:
+      - ./blockchain:/app
+      - /app/node_modules
+    depends_on:
+      chain:
+        condition: service_healthy
+    restart: "no"
+
+  worker-onchain:
+    profiles: ["blockchain"]
+    build: ./backend
+    command: ["pnpm", "worker:onchain"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/trustca
+      DATABASE_SCHEMA: public
+      ONCHAIN_MVP_ENABLED: "true"
+      ONCHAIN_RPC_URL: http://chain:8545
+      ONCHAIN_CHAIN_ID: 31337
+      ONCHAIN_CHAIN_NAME: Trustca Local
+      ONCHAIN_ANCHOR_CONTRACT: ${ONCHAIN_ANCHOR_CONTRACT:-0x5fbdb2315678afecb367f032d93f642f64180aa3}
+      ONCHAIN_OPERATOR_PRIVATE_KEY: ${ONCHAIN_OPERATOR_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
+      ONCHAIN_INTERNAL_TOKEN: ${ONCHAIN_INTERNAL_TOKEN:-local-onchain-internal-token-change-me}
+      ONCHAIN_CONFIRMATIONS: 1
+      ONCHAIN_POLL_INTERVAL_MS: 500
+      ONCHAIN_RECEIPT_TIMEOUT_MS: 10000
+      ONCHAIN_WORKER_ID: compose-worker
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      chain-deploy:
+        condition: service_completed_successfully
 
   frontend:
     build: ./frontend
