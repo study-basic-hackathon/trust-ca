@@ -26,6 +26,12 @@ services:
       # `db` はCompose内のサービス名(Dockerのネットワーク越しに解決される)。
       DATABASE_URL: postgresql://postgres:postgres@db:5432/trustca
       FRONTEND_ORIGIN: http://localhost:${FRONTEND_PORT:-3000}
+      PSA_MVP_ENABLED: ${PSA_MVP_ENABLED:-false}
+      PSA_API_TOKEN: ${PSA_API_TOKEN:-}
+      PSA_API_BASE_URL: ${PSA_API_BASE_URL:-https://api.psacard.com/publicapi}
+      PSA_API_TIMEOUT_MS: ${PSA_API_TIMEOUT_MS:-5000}
+      PSA_CACHE_TTL_SECONDS: ${PSA_CACHE_TTL_SECONDS:-86400}
+      PSA_REQUESTS_PER_MINUTE: ${PSA_REQUESTS_PER_MINUTE:-10}
     volumes:
       - ./backend:/app
       - /app/node_modules
@@ -50,6 +56,8 @@ services:
       # `backend` はCompose内のサービス名。SSR時のfetchはコンテナ内から実行されるため
       # localhostではなくこのホスト名で解決する必要がある。
       BACKEND_URL: http://backend:8080
+      # ブラウザから到達できるホスト側URL。コンテナ名`backend`は使わない。
+      NEXT_PUBLIC_BACKEND_URL: http://localhost:${BACKEND_PORT:-8080}
     volumes:
       - ./frontend:/app
       - /app/node_modules

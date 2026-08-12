@@ -1,0 +1,44 @@
+:root {
+  --paper: #f4f5f6;
+  --ink: #141a21;
+  --muted: #606a75;
+  --line: #ccd2d8;
+  --blue: #125fa8;
+  --blue-deep: #0a3f73;
+  --red: #d92f36;
+  --green: #18794e;
+  --amber: #a15c00;
+  --white: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--paper);
+  font-family: "Yu Gothic", "YuGothic", "Hiragino Kaku Gothic ProN",
+    "Noto Sans JP", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+::selection {
+  color: var(--white);
+  background: var(--blue);
+}
