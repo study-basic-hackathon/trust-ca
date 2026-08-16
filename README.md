@@ -14,6 +14,7 @@
 | [docs/design/database-schema.md](docs/design/database-schema.md) | Cloud SQL for PostgreSQLのスキーマ、ER図、制約、索引、migration・outbox運用 |
 | [docs/design/async-onchain-write.md](docs/design/async-onchain-write.md) | transactional outbox、再試行worker、監査anchor contract、本番Cloud Tasks移行設計 |
 | [docs/design/jpyc-payment.md](docs/design/jpyc-payment.md) | Embedded Wallets、SIWE、JPYC直接送金、非同期receipt検証のMVP設計 |
+| [docs/design/api-catalog.md](docs/design/api-catalog.md) | 外部・内部API一覧。認証、失敗時の扱い、再試行、秘密情報、主要フロー、環境変数 |
 | [docs/design/ekyc-design.md](docs/design/ekyc-design.md) | eKYC設計書。5層信頼モデル、Didit採用理由、ステータス正規化、本番移行方針 |
 | [docs/design/seller-onboarding-review-flow.md](docs/design/seller-onboarding-review-flow.md) | 販売者登録〜審査の全体フロー(運営者による人手審査を含む) |
 | [docs/design/folder-structure.md](docs/design/folder-structure.md) | `frontend/`・`backend/`それぞれの新規ファイルの配置ルール |
