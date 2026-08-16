@@ -75,6 +75,7 @@ pnpm vitest run --coverage   # src/lib/**に80%の閾値を強制
 ## 変更前に読んでおくべきドキュメント
 
 - [docs/design/system-architecture.md](docs/design/system-architecture.md) — 目標アーキテクチャ、PoCからの移行計画、機能ごとの設計(PSA API/Vision APIによるカード真贋チェック、ブロックチェーン監査証跡)、そして未決定事項の一覧(9節) — 何かが「決定済み」と思い込む前に確認すること。
+- [docs/design/api-catalog.md](docs/design/api-catalog.md) — 外部・内部APIのendpoint、認証、再試行、冪等性、秘密情報、失敗時の扱い。外部連携や新規routeの実装前に確認すること。
 - [docs/design/ekyc-design.md](docs/design/ekyc-design.md) — eKYC設計の全体(Didit連携、ステータス正規化表、Webhook署名検証方式)。
 - [docs/design/seller-onboarding-review-flow.md](docs/design/seller-onboarding-review-flow.md) — 販売者登録〜審査の全体シーケンス。未実装の運営者による人手審査フローを含む。
 - [docs/design/folder-structure.md](docs/design/folder-structure.md) — `frontend/`・`backend/`それぞれの新規ファイルの配置ルール(routes/services/db層、型定義の置き場所等)。
