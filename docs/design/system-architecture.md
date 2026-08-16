@@ -14,6 +14,7 @@
 |---|---|
 | [ekyc-design.md](./ekyc-design.md) | eKYC設計そのもの(5層信頼モデル、Didit採用理由、本番移行方針) |
 | [database-schema.md](./database-schema.md) | PostgreSQLのtable、制約、索引、migration、transactional outbox、PII境界 |
+| [api-catalog.md](./api-catalog.md) | 外部・内部APIのendpoint、認証、再試行、失敗時の扱い、秘密情報、主要フロー |
 | [docs/design/seller-onboarding-review-flow.md](./seller-onboarding-review-flow.md) | 販売者登録〜審査の業務フロー詳細(運営者による人手審査を含む) |
 | [docs/research/trustca-market-research.md](../research/trustca-market-research.md) | 競合調査・ポジショニング(事前型審査というコンセプトの根拠) |
 | **本書** | 上記を実現する**システム構成・インフラ・データ基盤**。8/6 MTGでの技術選定を起点にする |
@@ -66,7 +67,7 @@ flowchart TB
     subgraph External["外部サービス"]
         Didit[Didit<br/>eKYC Hosted Flow]
         PSA[PSA Public API<br/>GetByCertNumber]
-        Vision[Google Cloud Vision API<br/>四隅画像照合]
+        Vision[Google Cloud Vision API<br/>OCR・ラベル・領域検出]
         Chain[ブロックチェーン<br/>チェーン未確定]
         JPYC[JPYC等ステーブルコイン]
     end
@@ -170,13 +171,13 @@ flowchart TD
     HasPSA -- なし --> VisionPath[Google Vision APIで<br/>四隅等を撮影]
 
     PSAPath --> PSACompare["出品内容とAPI結果<br/>(カード名・グレード)を突合"]
-    PSACompare --> PSABadge["PSA検証済みバッジ"]
+    PSACompare --> PSABadge["PSA登録情報<br/>確認済みバッジ"]
 
-    VisionPath --> Store["出品時の四隅画像を保存"]
+    VisionPath --> Store["出品時の四隅画像を保存<br/>OCR・領域候補を抽出"]
     Store --> Ship["購入・発送"]
     Ship --> Reshoot["到着後、購入者が同一箇所を再撮影"]
-    Reshoot --> VisionCompare["Vision APIで出品時画像と<br/>同一性を検証"]
-    VisionCompare --> VisionResult["一致 / 不一致の結果を記録"]
+    Reshoot --> VisionCompare["Vision APIのOCR・領域検出と<br/>自社の画像比較ロジックを組み合わせる"]
+    VisionCompare --> VisionResult["一致度高 / 要確認の結果を記録"]
 ```
 
 #### 5.3.1 PSAあり経路
@@ -192,13 +193,13 @@ sequenceDiagram
     PSA-->>BE: カード名・グレード・鑑定日
     BE->>BE: 出品内容(カード名等)と突合
     alt 一致
-        BE-->>Seller: 「PSA検証済み」バッジ表示
+        BE-->>Seller: 「PSA登録情報確認済み」バッジ表示
     else 不一致 or API未達
         BE-->>Seller: 検証保留として表示・要目視確認
     end
 ```
 
-[docs/research/trustca-market-research.md](../research/trustca-market-research.md) 2.4節記載の通り、PSA Public APIの無料枠は2026年半ばから約1コール/日に縮小される見込みであるため、**デモの安定運用には有料プランへの移行検討が必要**(9節の未決定事項に記載)。
+PSA Public APIの公式公開ドキュメントには固定の呼び出し上限が掲載されていない。デモで必要な呼び出し回数を見積もったうえで、**API Token発行後にアカウントの契約条件・利用上限を確認する必要がある**(9節の未決定事項に記載)。推測値を実装上のquotaとして扱わない。詳細は[api-catalog.md 5.1節](./api-catalog.md#51-psa-public-api)を参照。
 
 #### 5.3.2 PSAなし経路(Vision API + nonce再撮影)
 
@@ -215,11 +216,12 @@ sequenceDiagram
     BE->>BE: 画像・特徴量をDBに保存(出品と紐付け)
     Note over Seller,Buyer: 取引成立・発送
     Buyer->>BE: 到着後、同一箇所を再撮影してアップロード
-    BE->>Vision: 出品時画像 と 到着後画像 を比較依頼
-    Vision-->>BE: 特徴点マッチング結果
-    alt 同一性が高い
-        BE-->>Buyer: 「現物一致」を表示
-    else 同一性が低い
+    BE->>Vision: 各画像のOCR・ラベル・領域検出を依頼
+    Vision-->>BE: OCR・ラベル・領域候補
+    BE->>BE: 自社の画像比較ロジックと組み合わせて評価
+    alt 画像比較の一致度が高い
+        BE-->>Buyer: 「画像比較: 一致度高」を表示
+    else 一致度が低い、または判断不能
         BE-->>Buyer: 「要確認」フラグ、運営者への通報導線
     end
 ```
@@ -298,7 +300,7 @@ MTGの時点で結論が出ていない項目を一覧化する。実装着手�
 | 5 | IaCツール | Terraform / Cloud Run yamlのみ / その他 | チームの習熟度、導入タイミング |
 | 6 | ブロックチェーンのチェーン選定 | 未定(JPYC対応チェーンとの整合が必要) | JPYC決済(5.4.2)を実施するかどうか |
 | 7 | ウォレット管理方式 | 自己管理(ユーザーウォレット) / バックエンド管理ウォレット | 5.4.2の実施要否、鍵管理・規制対応コスト |
-| 8 | PSA Public APIの利用プラン | 無料枠(約1コール/日) / 有料プラン | デモでの想定利用回数 |
+| 8 | PSA Public APIの利用条件・上限 | 発行Tokenに紐づく契約条件を確認 | 公式公開資料に固定quotaの記載がないため、Token発行後にアカウント画面・PSA窓口で確認 |
 | 9 | 運営者による人手審査画面 | 実装する / デモ台本のみで代替 | [seller-onboarding-review-flow.md 5節](./seller-onboarding-review-flow.md#5-運営者確認フローは必要か)参照 |
 
 ---
