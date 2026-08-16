@@ -1,6 +1,14 @@
+overrides:
+  rolldown: 1.2.3
+  uuid@<11.1.1: 11.1.1
+
 allowBuilds:
+  protobufjs: false
   sharp: false
+  tiny-secp256k1: false
   unrs-resolver: false
 ignoredBuiltDependencies:
+  - protobufjs
   - sharp
+  - tiny-secp256k1
   - unrs-resolver

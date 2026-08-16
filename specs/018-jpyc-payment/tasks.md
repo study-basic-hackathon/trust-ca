@@ -1,0 +1,21 @@
+# Tasks: JPYC決済MVP
+
+- [x] PostgreSQL payment verification queue migration
+- [x] EIP-4361 challengeの発行・保存・検証・consume
+- [x] wallet account作成と短時間session token
+- [x] JPYC metadata起動時検証
+- [x] orderからpayment intentを冪等作成
+- [x] tx hash登録とorder状態遷移
+- [x] `SKIP LOCKED` payment verification worker
+- [x] transaction inputとTransfer eventの完全照合
+- [x] payment/order/listingのatomic確定
+- [x] MockJPYC contract・deploy・test
+- [x] Docker Compose blockchain profile
+- [x] SIWE→JPYC→receipt→DBのE2E
+- [x] Embedded Wallets v11 + Wagmi 3の日本語UI
+- [x] 設計書、quickstart、security・production checklist
+- [ ] Polygon mainnet RPC・JPYC addressの本番確認
+- [ ] seller payout wallet設定画面
+- [ ] 法務・会計・利用規約review
+- [ ] EIP-1271対応判断
+- [ ] dispute・返金・二重入金runbook

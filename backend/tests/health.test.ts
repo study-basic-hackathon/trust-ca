@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-const { pingDb } = vi.hoisted(() => ({ pingDb: vi.fn() }));
+const { pingDb, pool } = vi.hoisted(() => ({
+  pingDb: vi.fn(),
+  pool: {},
+}));
 
-vi.mock("../src/db.js", () => ({ pingDb }));
+vi.mock("../src/db.js", () => ({ pingDb, pool }));
 
 const { app } = await import("../src/app.js");
 

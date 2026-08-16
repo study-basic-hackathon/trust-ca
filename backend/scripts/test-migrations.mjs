@@ -71,7 +71,7 @@ try {
   ]);
   assert.deepEqual(
     concurrentRuns.map((result) => result.applied.length).sort(),
-    [0, 1],
+    [0, 2],
     "同時実行時もmigrationは1回だけ適用されること",
   );
   console.log("  OK: advisory lockで同時実行を直列化");
@@ -275,9 +275,9 @@ try {
          (id, order_id, payer_wallet_id, payee_wallet_id, chain_id,
           token_address_normalized, from_address_normalized,
           to_address_normalized, amount_atomic, token_decimals, status,
-          tx_hash, expires_at, confirmed_at)
+          tx_hash, expires_at, confirmed_at, block_number)
        VALUES ($1, $2, $3, $4, 80002, $5, $6, $7, 10000, 18,
-               'confirmed', $8, CURRENT_TIMESTAMP + INTERVAL '1 hour', CURRENT_TIMESTAMP)`,
+               'confirmed', $8, CURRENT_TIMESTAMP + INTERVAL '1 hour', CURRENT_TIMESTAMP, 12)`,
       [
         randomUUID(),
         orderId,

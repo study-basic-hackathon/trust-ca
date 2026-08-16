@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Trustca",
-  description: "ポケモンカードC2Cマーケットプレイス",
+  title: "Trustca｜信頼できるカード取引",
+  description: "鑑定済みトレーディングカードのC2Cマーケットプレイス",
 };
 
 export default function RootLayout({

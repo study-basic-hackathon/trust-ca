@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 type BackendHealth = {
   status: string;
   db: string;
@@ -22,16 +24,19 @@ export default async function Home() {
   const health = await getBackendHealth();
 
   return (
-    <main>
+    <main style={{ maxWidth: 760, margin: "0 auto", padding: "72px 24px" }}>
       <h1>Trustca</h1>
-      <p>frontend/ ⇄ backend/ の疎通確認ページ</p>
+      <p>鑑定済みカードを、根拠とともに取引するための基盤です。</p>
       {health.ok ? (
         <p>
-          backend: status={health.data.status}, db={health.data.db}
+          システム状態：API={health.data.status}、データベース={health.data.db}
         </p>
       ) : (
-        <p>backend未到達: {health.error}</p>
+        <p>APIに接続できません：{health.error}</p>
       )}
+      <p>
+        <Link href="/payments/demo">JPYC決済MVPを開く →</Link>
+      </p>
     </main>
   );
 }

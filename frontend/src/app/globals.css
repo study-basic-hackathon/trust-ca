@@ -1,0 +1,36 @@
+:root {
+  color-scheme: light;
+  --paper: #f4f0e6;
+  --ink: #17213c;
+  --muted: #606777;
+  --line: rgba(23, 33, 60, 0.16);
+  --indigo: #1f315f;
+  --seal: #b84630;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--paper);
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background:
+    linear-gradient(rgba(23, 33, 60, 0.035) 1px, transparent 1px),
+    var(--paper);
+  background-size: 100% 32px;
+  font-family: "Yu Mincho", "Hiragino Mincho ProN", "Noto Serif JP", serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}
