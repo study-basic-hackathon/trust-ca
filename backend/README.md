@@ -42,13 +42,25 @@ curl http://localhost:8080/healthz
 # → {"status":"ok","db":"ok"}
 ```
 
+### PSA証明書照会MVP
+
+`PSA_API_TOKEN`を取得後、`backend/.env`またはルートの`.env`へ設定し、`PSA_MVP_ENABLED=true`にする。無効時はPSAへリクエストしない。
+
+```bash
+curl -X POST http://localhost:8080/api/v1/cards/psa-verifications \
+  -H 'Content-Type: application/json' \
+  -d '{"certNumber":"12345678"}'
+```
+
+設定、判定方法、制約は[PSA API MVP設計書](../docs/design/psa-api-mvp.md)を参照。
+
 ## テスト
 
 ```bash
 pnpm test
 ```
 
-`tests/health.test.ts`はDBをモックしているため、Postgresなしで実行できる。
+テストはDBとPSA APIをモックしているため、PostgresおよびPSA APIトークンなしで実行できる。
 
 実PostgreSQLでmigrationと主要制約を確認する場合:
 
@@ -136,6 +148,9 @@ docker compose exec \
 | `scripts/test-payment-e2e.mjs` | SIWE→JPYC transfer→payment worker→DB状態遷移を検証 |
 | `src/app.ts` | Honoアプリ本体(ルーティング+CORS)。`serve()`を呼ばないことでテスト時に`app.request()`を使える |
 | `src/routes/health.ts` | `GET /healthz` |
+| `src/routes/psa-verifications.ts` | `POST /api/v1/cards/psa-verifications` |
+| `src/services/psa.ts` | PSA Public APIクライアント、正規化、キャッシュ、再試行 |
+| `src/env.ts` | PSA API、オンチェーン記録、決済に関する環境変数の読み取り |
 | `src/routes/onchain-anchors.ts` | 監査event登録・状態取得用の内部API |
 | `src/db/onchain-outbox.ts` | transactional outbox repository |
 | `src/blockchain/audit-anchor.ts` | viem client、chain/contract/operator検証 |

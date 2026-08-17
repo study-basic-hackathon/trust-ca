@@ -6,6 +6,12 @@
   --line: rgba(23, 33, 60, 0.16);
   --indigo: #1f315f;
   --seal: #b84630;
+  --blue: #125fa8;
+  --blue-deep: #0a3f73;
+  --red: #d92f36;
+  --green: #18794e;
+  --amber: #a15c00;
+  --white: #ffffff;
 }
 
 * {
@@ -14,21 +20,33 @@
 
 html {
   background: var(--paper);
+  color: var(--ink);
 }
 
 body {
   margin: 0;
+  min-height: 100vh;
   color: var(--ink);
   background:
     linear-gradient(rgba(23, 33, 60, 0.035) 1px, transparent 1px),
     var(--paper);
   background-size: 100% 32px;
   font-family: "Yu Mincho", "Hiragino Mincho ProN", "Noto Serif JP", serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 button,
 input {
   font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+::selection {
+  color: var(--white);
+  background: var(--blue);
 }
 
 a {

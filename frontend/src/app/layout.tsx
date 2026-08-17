@@ -3,7 +3,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Trustca｜信頼できるカード取引",
-  description: "鑑定済みトレーディングカードのC2Cマーケットプレイス",
+  description:
+    "PSA照会とJPYC決済に対応する、鑑定済みトレーディングカードのC2Cマーケットプレイス",
 };
 
 export default function RootLayout({

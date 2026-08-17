@@ -18,7 +18,7 @@ pnpm dev
 # → http://localhost:3000
 ```
 
-`BACKEND_URL`が指すbackendに到達できる状態で起動する必要がある(`docker compose up backend`等)。
+`BACKEND_URL`と`NEXT_PUBLIC_BACKEND_URL`が指すbackendに到達できる状態で起動する必要がある(`docker compose up backend`等)。前者はSSR用、後者はブラウザからの直接fetch用であり、秘密情報を`NEXT_PUBLIC_*`へ指定してはならない。
 
 ## Docker Composeでの起動
 
@@ -28,7 +28,7 @@ pnpm dev
 docker compose up
 ```
 
-frontend・backend・db(PostgreSQL)がまとめて起動する。frontendは`http://localhost:3000`。トップページがbackendの`/healthz`をSSR時にfetchして疎通状況を表示する。
+frontend・backend・db(PostgreSQL)がまとめて起動する。frontendは`http://localhost:3000`。トップページはbackendの疎通状況を表示し、PSA証明書番号の照会フォームからbackendへ直接リクエストする。
 
 ## JPYC決済MVP画面
 
