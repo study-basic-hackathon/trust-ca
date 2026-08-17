@@ -34,9 +34,12 @@ docker compose up --build
 pnpm lint
 pnpm typecheck        # tsc --noEmit
 pnpm test             # vitest run
+pnpm test:db          # 一時PostgreSQL schemaでmigration・制約を検証(TEST_DATABASE_URL必須)
 pnpm vitest run tests/health.test.ts   # 単一テストファイル
 pnpm vitest run -t "returns 200"       # 名前で単一テストを指定
 pnpm build            # tsc -> dist/(本番ビルドの確認用)
+pnpm db:migrate       # 未適用SQL migrationを適用
+pnpm db:migrate:status # 適用状況・checksumを確認
 ```
 
 **frontend/**
@@ -70,11 +73,15 @@ pnpm vitest run --coverage   # src/lib/**に80%の閾値を強制
 
 **データ層**: 本番・ローカルともにPostgreSQL(本番はCloud SQLの既存インスタンスを流用)。`backend/src/db.ts`が唯一の`pg.Pool`を持ち、`DATABASE_URL`未設定時はimport時にthrowする(fail fast)。インフラ詳細は[docs/design/system-architecture.md §7](docs/design/system-architecture.md)を参照。
 
+**DB migration**: SQLの正は`backend/src/db/migrations/`。適用済みファイルは編集せず、変更は新しいversionで追加する。スキーマ・制約・Cloud SQL運用は[docs/design/database-schema.md](docs/design/database-schema.md)を参照。
+
 **Node/Nextのバージョン**: `backend/`・`frontend/`のDockerfileは`node:24-alpine`に固定。`frontend/`と`poc/ekyc/`はどちらも`next@16.2.12`に固定しており、見慣れないNext.js APIを使う前に`node_modules/next/dist/docs/`を確認すること(詳細は各ディレクトリの`AGENTS.md`)。
 
 ## 変更前に読んでおくべきドキュメント
 
 - [docs/design/system-architecture.md](docs/design/system-architecture.md) — 目標アーキテクチャ、PoCからの移行計画、機能ごとの設計(PSA API/Vision APIによるカード真贋チェック、ブロックチェーン監査証跡)、そして未決定事項の一覧(9節) — 何かが「決定済み」と思い込む前に確認すること。
+- [docs/design/database-schema.md](docs/design/database-schema.md) — PostgreSQLのtable、関係、制約、索引、migration、transactional outbox、PII境界。
+- [docs/design/api-catalog.md](docs/design/api-catalog.md) — 外部・内部APIのendpoint、認証、再試行、冪等性、秘密情報、失敗時の扱い。外部連携や新規routeの実装前に確認すること。
 - [docs/design/ekyc-design.md](docs/design/ekyc-design.md) — eKYC設計の全体(Didit連携、ステータス正規化表、Webhook署名検証方式)。
 - [docs/design/seller-onboarding-review-flow.md](docs/design/seller-onboarding-review-flow.md) — 販売者登録〜審査の全体シーケンス。未実装の運営者による人手審査フローを含む。
 - [docs/design/folder-structure.md](docs/design/folder-structure.md) — `frontend/`・`backend/`それぞれの新規ファイルの配置ルール(routes/services/db層、型定義の置き場所等)。

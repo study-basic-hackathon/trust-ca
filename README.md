@@ -11,6 +11,10 @@
 | ドキュメント | 内容 |
 |---|---|
 | [docs/design/system-architecture.md](docs/design/system-architecture.md) | システムアーキテクチャ設計書。フロント/バックエンド構成、インフラ、機能ごとのアーキテクチャ、未決定事項 |
+| [docs/design/database-schema.md](docs/design/database-schema.md) | Cloud SQL for PostgreSQLのスキーマ、ER図、制約、索引、migration・outbox運用 |
+| [docs/design/async-onchain-write.md](docs/design/async-onchain-write.md) | transactional outbox、再試行worker、監査anchor contract、本番Cloud Tasks移行設計 |
+| [docs/design/jpyc-payment.md](docs/design/jpyc-payment.md) | Embedded Wallets、SIWE、JPYC直接送金、非同期receipt検証のMVP設計 |
+| [docs/design/api-catalog.md](docs/design/api-catalog.md) | 外部・内部API一覧。認証、失敗時の扱い、再試行、秘密情報、主要フロー、環境変数 |
 | [docs/design/ekyc-design.md](docs/design/ekyc-design.md) | eKYC設計書。5層信頼モデル、Didit採用理由、ステータス正規化、本番移行方針 |
 | [docs/design/seller-onboarding-review-flow.md](docs/design/seller-onboarding-review-flow.md) | 販売者登録〜審査の全体フロー(運営者による人手審査を含む) |
 | [docs/design/folder-structure.md](docs/design/folder-structure.md) | `frontend/`・`backend/`それぞれの新規ファイルの配置ルール |
@@ -27,8 +31,9 @@
 ├── docs/                設計・調査ドキュメント(上表)
 ├── frontend/            Next.js(App Router)。Firebase App HostingでSSR
 ├── backend/             Hono API(TypeScript)。Cloud Runにデプロイ
+├── blockchain/          Hardhat 3。監査anchorとlocal決済用MockJPYC、test
 ├── poc/ekyc/            eKYCフローのPoC実装(Next.js + SQLite、Didit本番APIと疎通検証済み。参照専用)
-├── docker-compose.yml   ローカル開発用(frontend/backend/db)
+├── docker-compose.yml   ローカル開発用(frontend/backend/db + optional local chain)
 └── README.md            本ファイル
 ```
 
@@ -55,6 +60,16 @@ docker compose up
 ```
 
 各アプリを単体で起動する場合はそれぞれの`README.md`([frontend/README.md](frontend/README.md) / [backend/README.md](backend/README.md) / [poc/ekyc/README.md](poc/ekyc/README.md))を参照。
+
+非同期オンチェーン記録MVPを含める場合は`.env.example`を`.env`へコピーし、`ONCHAIN_MVP_ENABLED=true`へ変更してprofileを指定する。
+
+```bash
+docker compose --profile blockchain up --build
+```
+
+実行方法と安全上の注意は[非同期オンチェーン記録設計書](docs/design/async-onchain-write.md#12-ローカル検証)を参照する。
+
+JPYC決済MVPを検証する場合は、`.env`で`PAYMENT_MVP_ENABLED=true`と`NEXT_PUBLIC_WEB3AUTH_CLIENT_ID`を設定し、同じ`blockchain` profileを起動する。詳細は[JPYC決済・ウォレット認証MVP設計書](docs/design/jpyc-payment.md#12-ローカル検証)を参照する。
 
 ---
 

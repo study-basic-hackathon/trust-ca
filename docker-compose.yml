@@ -25,6 +25,7 @@ services:
       PORT: 8080
       # `db` はCompose内のサービス名(Dockerのネットワーク越しに解決される)。
       DATABASE_URL: postgresql://postgres:postgres@db:5432/trustca
+      DATABASE_SCHEMA: public
       FRONTEND_ORIGIN: http://localhost:${FRONTEND_PORT:-3000}
       PSA_MVP_ENABLED: ${PSA_MVP_ENABLED:-false}
       PSA_API_TOKEN: ${PSA_API_TOKEN:-}
@@ -32,12 +33,29 @@ services:
       PSA_API_TIMEOUT_MS: ${PSA_API_TIMEOUT_MS:-5000}
       PSA_CACHE_TTL_SECONDS: ${PSA_CACHE_TTL_SECONDS:-86400}
       PSA_REQUESTS_PER_MINUTE: ${PSA_REQUESTS_PER_MINUTE:-10}
+      ONCHAIN_MVP_ENABLED: ${ONCHAIN_MVP_ENABLED:-false}
+      ONCHAIN_RPC_URL: http://chain:8545
+      ONCHAIN_CHAIN_ID: 31337
+      ONCHAIN_CHAIN_NAME: Trustca Local
+      ONCHAIN_ANCHOR_CONTRACT: ${ONCHAIN_ANCHOR_CONTRACT:-0x5fbdb2315678afecb367f032d93f642f64180aa3}
+      ONCHAIN_OPERATOR_PRIVATE_KEY: ${ONCHAIN_OPERATOR_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
+      ONCHAIN_INTERNAL_TOKEN: ${ONCHAIN_INTERNAL_TOKEN:-local-onchain-internal-token-change-me}
+      PAYMENT_MVP_ENABLED: ${PAYMENT_MVP_ENABLED:-false}
+      PAYMENT_RPC_URL: http://chain:8545
+      PAYMENT_CHAIN_ID: 31337
+      PAYMENT_CHAIN_NAME: Trustca Local
+      PAYMENT_JPYC_TOKEN_ADDRESS: ${PAYMENT_JPYC_TOKEN_ADDRESS:-0xe7f1725e7734ce288f8367e1bb143e90bb3f0512}
+      PAYMENT_EXPECTED_SYMBOL: JPYC
+      PAYMENT_CONFIRMATIONS: 1
+      PAYMENT_SESSION_SECRET: ${PAYMENT_SESSION_SECRET:-local-payment-session-secret-change-me}
+      PAYMENT_SIWE_DOMAIN: localhost:${FRONTEND_PORT:-3000}
+      PAYMENT_SIWE_URI: http://localhost:${FRONTEND_PORT:-3000}
     volumes:
       - ./backend:/app
       - /app/node_modules
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test:
         [
@@ -47,6 +65,112 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  migrate:
+    build: ./backend
+    command: ["pnpm", "db:migrate"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/trustca
+      DATABASE_SCHEMA: public
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  chain:
+    profiles: ["blockchain"]
+    build: ./blockchain
+    command: ["pnpm", "node"]
+    ports:
+      - "${CHAIN_RPC_PORT:-8545}:8545"
+    volumes:
+      - ./blockchain:/app
+      - /app/node_modules
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://localhost:8545',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',method:'eth_chainId',params:[],id:1})}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  chain-deploy:
+    profiles: ["blockchain"]
+    build: ./blockchain
+    command: ["pnpm", "deploy:local"]
+    environment:
+      LOCALHOST_RPC_URL: http://chain:8545
+      EXPECTED_ANCHOR_CONTRACT: ${ONCHAIN_ANCHOR_CONTRACT:-0x5fbdb2315678afecb367f032d93f642f64180aa3}
+      EXPECTED_JPYC_TOKEN: ${PAYMENT_JPYC_TOKEN_ADDRESS:-0xe7f1725e7734ce288f8367e1bb143e90bb3f0512}
+    volumes:
+      - ./blockchain:/app
+      - /app/node_modules
+    depends_on:
+      chain:
+        condition: service_healthy
+    restart: "no"
+
+  worker-onchain:
+    profiles: ["blockchain"]
+    build: ./backend
+    command: ["pnpm", "worker:onchain"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/trustca
+      DATABASE_SCHEMA: public
+      ONCHAIN_MVP_ENABLED: "true"
+      ONCHAIN_RPC_URL: http://chain:8545
+      ONCHAIN_CHAIN_ID: 31337
+      ONCHAIN_CHAIN_NAME: Trustca Local
+      ONCHAIN_ANCHOR_CONTRACT: ${ONCHAIN_ANCHOR_CONTRACT:-0x5fbdb2315678afecb367f032d93f642f64180aa3}
+      ONCHAIN_OPERATOR_PRIVATE_KEY: ${ONCHAIN_OPERATOR_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
+      ONCHAIN_INTERNAL_TOKEN: ${ONCHAIN_INTERNAL_TOKEN:-local-onchain-internal-token-change-me}
+      ONCHAIN_CONFIRMATIONS: 1
+      ONCHAIN_POLL_INTERVAL_MS: 500
+      ONCHAIN_RECEIPT_TIMEOUT_MS: 10000
+      ONCHAIN_WORKER_ID: compose-worker
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      chain-deploy:
+        condition: service_completed_successfully
+
+  worker-payment:
+    profiles: ["blockchain"]
+    build: ./backend
+    command: ["pnpm", "worker:payment"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/trustca
+      DATABASE_SCHEMA: public
+      PAYMENT_MVP_ENABLED: "true"
+      PAYMENT_RPC_URL: http://chain:8545
+      PAYMENT_CHAIN_ID: 31337
+      PAYMENT_CHAIN_NAME: Trustca Local
+      PAYMENT_JPYC_TOKEN_ADDRESS: ${PAYMENT_JPYC_TOKEN_ADDRESS:-0xe7f1725e7734ce288f8367e1bb143e90bb3f0512}
+      PAYMENT_EXPECTED_SYMBOL: JPYC
+      PAYMENT_CONFIRMATIONS: 1
+      PAYMENT_POLL_INTERVAL_MS: 500
+      PAYMENT_LOCK_TIMEOUT_SECONDS: 30
+      PAYMENT_VERIFICATION_TIMEOUT_SECONDS: 60
+      PAYMENT_SESSION_SECRET: ${PAYMENT_SESSION_SECRET:-local-payment-session-secret-change-me}
+      PAYMENT_SIWE_DOMAIN: localhost:${FRONTEND_PORT:-3000}
+      PAYMENT_SIWE_URI: http://localhost:${FRONTEND_PORT:-3000}
+      PAYMENT_WORKER_ID: compose-payment-worker
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      chain-deploy:
+        condition: service_completed_successfully
 
   frontend:
     build: ./frontend
@@ -58,6 +182,11 @@ services:
       BACKEND_URL: http://backend:8080
       # ブラウザから到達できるホスト側URL。コンテナ名`backend`は使わない。
       NEXT_PUBLIC_BACKEND_URL: http://localhost:${BACKEND_PORT:-8080}
+      NEXT_PUBLIC_WEB3AUTH_CLIENT_ID: ${NEXT_PUBLIC_WEB3AUTH_CLIENT_ID:-}
+      NEXT_PUBLIC_PAYMENT_CHAIN_ID: 31337
+      NEXT_PUBLIC_PAYMENT_CHAIN_NAME: Trustca Local
+      NEXT_PUBLIC_PAYMENT_RPC_URL: http://localhost:${CHAIN_RPC_PORT:-8545}
+      NEXT_PUBLIC_PAYMENT_EXPLORER_URL: ""
     volumes:
       - ./frontend:/app
       - /app/node_modules

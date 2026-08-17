@@ -1,6 +1,8 @@
 .shell {
   min-height: 100vh;
   overflow: hidden;
+  font-family: "Yu Gothic", "YuGothic", "Hiragino Kaku Gothic ProN",
+    "Noto Sans JP", sans-serif;
 }
 
 .header {
@@ -34,6 +36,32 @@
   color: var(--blue);
   font-size: 19px;
   line-height: 1;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.paymentLink {
+  padding: 8px 12px;
+  border: 1px solid var(--blue);
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+}
+
+.paymentLink:hover {
+  color: var(--white);
+  background: var(--blue);
+}
+
+.paymentLink:focus-visible {
+  outline: 3px solid rgba(18, 95, 168, 0.3);
+  outline-offset: 3px;
 }
 
 .systemStatus {
@@ -527,6 +555,15 @@
 
   .header {
     height: 72px;
+  }
+
+  .headerActions {
+    gap: 12px;
+  }
+
+  .paymentLink {
+    padding: 7px 9px;
+    font-size: 10px;
   }
 
   .systemStatus {

@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "PSA証明書照会 | Trustca",
-  description: "出品前にPSAのカード登録情報を確認するTrustcaの照会画面",
+  title: "Trustca｜信頼できるカード取引",
+  description:
+    "PSA照会とJPYC決済に対応する、鑑定済みトレーディングカードのC2Cマーケットプレイス",
 };
 
 export default function RootLayout({

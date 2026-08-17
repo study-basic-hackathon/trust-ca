@@ -13,6 +13,9 @@
 | ドキュメント | スコープ |
 |---|---|
 | [ekyc-design.md](./ekyc-design.md) | eKYC設計そのもの(5層信頼モデル、Didit採用理由、本番移行方針) |
+| [database-schema.md](./database-schema.md) | PostgreSQLのtable、制約、索引、migration、transactional outbox、PII境界 |
+| [jpyc-payment.md](./jpyc-payment.md) | Embedded Wallets、SIWE、JPYC直接送金、非同期receipt検証 |
+| [api-catalog.md](./api-catalog.md) | 外部・内部APIのendpoint、認証、再試行、失敗時の扱い、秘密情報、主要フロー |
 | [docs/design/seller-onboarding-review-flow.md](./seller-onboarding-review-flow.md) | 販売者登録〜審査の業務フロー詳細(運営者による人手審査を含む) |
 | [docs/research/trustca-market-research.md](../research/trustca-market-research.md) | 競合調査・ポジショニング(事前型審査というコンセプトの根拠) |
 | **本書** | 上記を実現する**システム構成・インフラ・データ基盤**。8/6 MTGでの技術選定を起点にする |
@@ -30,13 +33,13 @@ MTGでの決定・合意事項をそのまま起点とする。「未確定」�
 | バックエンド言語 | TypeScript | 確定 |
 | バックエンドフレームワーク | Hono または NestJS 系統 | **未確定**(候補のみ) |
 | バックエンド実行基盤 | GCP Cloud Run | 確定 |
-| DB | GCP CloudSQL(王さんの環境に既存のインスタンスを流用、追加コストなし) | 確定 |
+| DB | GCP Cloud SQL for PostgreSQL(既存インスタンス流用を第一候補) | PostgreSQLは確定。既存instanceのmajor version・接続可否は要確認 |
 | ローカル開発環境 | Docker Compose | 確定 |
 | コーディングエージェント | Claude Code | 確定 |
 | インフラ環境 | 王さんの既存GCP環境を間借りする | 確定(ただしプロジェクト分離方針は未確定) |
 | IaC | 当面は手動構築、後からyml等でコード化する(順序として後回みで合意) | 確定(順序) |
 
-現行実装(`poc/ekyc/`)はNext.js App RouterのRoute Handlersがバックエンドを兼ね、DBはローカルファイルの`better-sqlite3`である。MTGの決定は「フロントとバックエンドを分離し、DBをマネージドのCloudSQLに寄せる」方向であるため、本書はこの**移行**を軸に構成する(4節)。
+現行実装(`poc/ekyc/`)はNext.js App RouterのRoute Handlersがバックエンドを兼ね、DBはローカルファイルの`better-sqlite3`である。MTGの決定は「フロントとバックエンドを分離し、DBをマネージドのCloud SQLへ寄せる」方向であるため、本書はこの**移行**を軸に構成する(4節)。
 
 ---
 
@@ -57,7 +60,7 @@ flowchart TB
             BE["バックエンドAPI<br/>TypeScript(Hono / NestJS)"]
         end
 
-        DB[(CloudSQL)]
+        DB[(Cloud SQL<br/>for PostgreSQL)]
         SM[Secret Manager<br/>APIキー・Webhookシークレット・鍵]
         Queue[Cloud Tasks / Pub/Sub<br/>非同期ジョブ]
     end
@@ -65,7 +68,7 @@ flowchart TB
     subgraph External["外部サービス"]
         Didit[Didit<br/>eKYC Hosted Flow]
         PSA[PSA Public API<br/>GetByCertNumber]
-        Vision[Google Cloud Vision API<br/>四隅画像照合]
+        Vision[Google Cloud Vision API<br/>OCR・ラベル・領域検出]
         Chain[ブロックチェーン<br/>チェーン未確定]
         JPYC[JPYC等ステーブルコイン]
     end
@@ -111,7 +114,7 @@ MTGで合意した「ブロックチェーン活用」(改竄防止の監査証�
 | 観点 | 現行(`poc/ekyc/`) | 目標(MTG決定) | 移行の要否 |
 |---|---|---|---|
 | フロント/バック分離 | Next.js App RouterのRoute Handlersが同居 | Next.js(FE)とTS API(BE, Hono/NestJS)を分離 | 要 |
-| DB | `better-sqlite3`(ローカルファイル、`data/ekyc.db`) | CloudSQL(マネージド) | 要 |
+| DB | `better-sqlite3`(ローカルファイル、`data/ekyc.db`) | Cloud SQL for PostgreSQL(マネージド) | 要 |
 | Webhook到達性 | ローカルでは届かないため`ngrok`が必要 | Cloud Runは常時公開URLを持つため`ngrok`不要 | 移行で解消 |
 | ビジネスロジック | `src/lib/didit/{client,normalize,signature}.ts` | ほぼそのまま移植可能(フレームワーク非依存な純関数群) | 小 |
 | 実行環境 | `next dev` / `next start` | Cloud Run(コンテナ) | 要 |
@@ -121,7 +124,7 @@ MTGで合意した「ブロックチェーン活用」(改竄防止の監査証�
 
 `poc/ekyc/src/lib/didit/`配下(`client.ts`・`normalize.ts`・`signature.ts`)はNext.js固有のAPIに依存しない純粋なTypeScript関数として書かれている。移行時はこれらをほぼそのままバックエンドサービスへ移し、以下の2点だけを書き換えればよい。
 
-1. `src/lib/db.ts`: `better-sqlite3`のクエリをCloudSQL用クライアント(`pg`など)に置き換える。テーブル定義(`sellers` / `seller_verifications` / `webhook_logs` / `verification_events`)はスキーマ設計の土台としてそのまま使える。
+1. `src/lib/db.ts`: `better-sqlite3`のクエリを`pg` repositoryへ置き換える。PoCの4 tableは責務の参考にするが、そのまま複製せず、[database-schema.md 11節](./database-schema.md#11-sqlite-pocからの対応)の対応表に従ってaccount、販売者、Webhook監査を分離する。
 2. `src/app/api/**/route.ts`: Next.js Route HandlerのハンドラをHono/NestJSのルートハンドラに移植する。バリデーション・エラーハンドリングの構造は流用可能。
 
 ### 4.3 移行の進め方(推奨)
@@ -131,7 +134,7 @@ MTGで合意した「ブロックチェーン活用」(改竄防止の監査証�
 ```mermaid
 flowchart LR
     A["現状: Next.js単体<br/>+ SQLite"] --> B["Step1: バックエンドを<br/>Hono/NestJSで分離<br/>(DBはまだSQLiteでも可)"]
-    B --> C["Step2: DBをCloudSQLへ移行"]
+    B --> C["Step2: DBをCloud SQLへ移行"]
     C --> D["Step3: Cloud Runへデプロイ<br/>(BE)"]
     D --> E["Step4: フロントのホスティング先を確定し<br/>デプロイ(FE)"]
     E --> F["Step5: IaC化(yml等)"]
@@ -169,13 +172,13 @@ flowchart TD
     HasPSA -- なし --> VisionPath[Google Vision APIで<br/>四隅等を撮影]
 
     PSAPath --> PSACompare["出品内容とAPI結果<br/>(カード名・グレード)を突合"]
-    PSACompare --> PSABadge["PSA検証済みバッジ"]
+    PSACompare --> PSABadge["PSA登録情報<br/>確認済みバッジ"]
 
-    VisionPath --> Store["出品時の四隅画像を保存"]
+    VisionPath --> Store["出品時の四隅画像を保存<br/>OCR・領域候補を抽出"]
     Store --> Ship["購入・発送"]
     Ship --> Reshoot["到着後、購入者が同一箇所を再撮影"]
-    Reshoot --> VisionCompare["Vision APIで出品時画像と<br/>同一性を検証"]
-    VisionCompare --> VisionResult["一致 / 不一致の結果を記録"]
+    Reshoot --> VisionCompare["Vision APIのOCR・領域検出と<br/>自社の画像比較ロジックを組み合わせる"]
+    VisionCompare --> VisionResult["一致度高 / 要確認の結果を記録"]
 ```
 
 #### 5.3.1 PSAあり経路
@@ -191,13 +194,13 @@ sequenceDiagram
     PSA-->>BE: カード名・グレード・鑑定日
     BE->>BE: 出品内容(カード名等)と突合
     alt 一致
-        BE-->>Seller: 「PSA検証済み」バッジ表示
+        BE-->>Seller: 「PSA登録情報確認済み」バッジ表示
     else 不一致 or API未達
         BE-->>Seller: 検証保留として表示・要目視確認
     end
 ```
 
-[docs/research/trustca-market-research.md](../research/trustca-market-research.md) 2.4節記載の通り、PSA Public APIの無料枠は2026年半ばから約1コール/日に縮小される見込みであるため、**デモの安定運用には有料プランへの移行検討が必要**(9節の未決定事項に記載)。
+PSA Public APIの公式公開ドキュメントには固定の呼び出し上限が掲載されていない。デモで必要な呼び出し回数を見積もったうえで、**API Token発行後にアカウントの契約条件・利用上限を確認する必要がある**(9節の未決定事項に記載)。推測値を実装上のquotaとして扱わない。詳細は[api-catalog.md 5.1節](./api-catalog.md#51-psa-public-api)を参照。
 
 #### 5.3.2 PSAなし経路(Vision API + nonce再撮影)
 
@@ -214,11 +217,12 @@ sequenceDiagram
     BE->>BE: 画像・特徴量をDBに保存(出品と紐付け)
     Note over Seller,Buyer: 取引成立・発送
     Buyer->>BE: 到着後、同一箇所を再撮影してアップロード
-    BE->>Vision: 出品時画像 と 到着後画像 を比較依頼
-    Vision-->>BE: 特徴点マッチング結果
-    alt 同一性が高い
-        BE-->>Buyer: 「現物一致」を表示
-    else 同一性が低い
+    BE->>Vision: 各画像のOCR・ラベル・領域検出を依頼
+    Vision-->>BE: OCR・ラベル・領域候補
+    BE->>BE: 自社の画像比較ロジックと組み合わせて評価
+    alt 画像比較の一致度が高い
+        BE-->>Buyer: 「画像比較: 一致度高」を表示
+    else 一致度が低い、または判断不能
         BE-->>Buyer: 「要確認」フラグ、運営者への通報導線
     end
 ```
@@ -231,33 +235,40 @@ MTGで挙がった2つの用途を分けて設計する。両者は独立した�
 
 - 目的: 取引・審査結果などの重要イベントのハッシュをブロックチェーンに刻み、後から改竄できないことを証跡として示す。
 - **同期処理には組み込まない**(ekyc-design.md原則1「サーバー間通信のみを信用する」と同じ発想で、ブロックチェーン書き込みの遅延・失敗が主要フローをブロックしてはならない)。
+- MVPの実装契約、再試行、contract、本番Cloud Tasks移行は[取引情報の非同期オンチェーン記録設計書](./async-onchain-write.md)を正とする。
 
 ```mermaid
 flowchart LR
-    Event["取引/審査イベント発生<br/>(例: KYC承認, 出品確定, 決済完了)"] --> DB[(CloudSQLに記録)]
-    DB --> Enqueue[Cloud Tasks / Pub/Subへ<br/>非同期でキューイング]
-    Enqueue --> Worker[ワーカー: イベントをハッシュ化]
-    Worker --> Chain["ブロックチェーンへ書き込み<br/>(チェーン未確定)"]
-    Chain --> Confirm[トランザクションハッシュを<br/>CloudSQLに記録]
+    Event["取引/審査イベント発生<br/>(例: KYC承認, 出品確定, 決済完了)"] --> Hash[canonical化 + SHA-256]
+    Hash -->|同一transaction| Audit[(audit_events)]
+    Hash -->|同一transaction| Outbox[(onchain_outbox)]
+    Worker[非同期worker] -->|claim / retry| Outbox
+    Worker --> Chain["監査contractへhashを書き込み"]
+    Chain --> Receipt[receipt / block確定]
+    Receipt --> Outbox
 ```
 
 #### 5.4.2 JPYC等の仮想通貨による決済
 
-- 決済はJPYC等のステーブルコインで行う想定。
-- **ウォレット管理方式が未確定**: 購入者・販売者が自己保有ウォレット(MetaMask等)を使う方式と、バックエンドが管理ウォレットを持つ方式では、鍵管理(Secret Manager/KMS利用の要否)・規制対応・実装コストが大きく異なる。9節の未決定事項として扱う。
-- [trustca-market-research.md 5節](../research/trustca-market-research.md)の法務メモにある通り、エスクロー構成は資金決済法の論点があるため、実際の資金を動かす前に**法務確認が必要**。ハッカソンのスコープでは、リスクの低い5.4.1(ハッシュ書き込みによる改竄防止の証跡)を優先し、5.4.2(実決済)はストレッチゴールとして10節に位置づける。
+- Issue #18のMVPでは、MetaMask Embedded Wallets（旧Web3Auth）でwalletを接続し、EIP-4361準拠のSIWEでbackend sessionを発行する。
+- 購入者から販売者へJPYCを直接`transfer`し、Trustcaは秘密鍵・seed phrase・資金を保管しない。
+- browserのtransaction hash申告だけでは支払確定にせず、別workerがreceipt、calldata、`Transfer` event、確定block数を照合する。
+- エスクロー、代理送金、自動返金はMVP対象外であり、導入前に法務・資金管理・contract auditが必要である。
+- 詳細、状態遷移、API、Node-Stayからの移行判断、本番条件は[JPYC決済・ウォレット認証MVP設計書](./jpyc-payment.md)を正とする。
 
 ---
 
 ## 6. ローカル開発環境(Docker Compose)
 
-MTGでDocker Composeでのローカル開発が合意された。目標構成は以下の3コンテナを想定する(バックエンド分離後)。
+MTGでDocker Composeでのローカル開発が合意された。通常開発は以下の3 serviceを中心とし、初期化用`migrate`をone-shotで実行する。
 
 | サービス | 役割 | 備考 |
 |---|---|---|
 | `frontend` | Next.js(`next dev`) | ポート例: 3000 |
-| `backend` | Hono/NestJS API | ポート例: 8080。CloudSQLの代わりにローカルの`db`サービスに接続 |
-| `db` | PostgreSQL(またはMySQL) | 王さんの環境の既存CloudSQLインスタンスのエンジンに合わせる(要確認、9節参照) |
+| `backend` | Hono/NestJS API | ポート例: 8080。Cloud SQLの代わりにローカルの`db`サービスへ接続 |
+| `db` | PostgreSQL 16 | Cloud SQLの代わりにローカルで利用。one-shotの`migrate` serviceが初期化 |
+
+`blockchain` profileを指定した場合は、Hardhat local nodeの`chain`、contract deploy用`chain-deploy`、outbox配送用`worker-onchain`を追加起動する。
 
 現行の`poc/ekyc/`は単体で`pnpm dev`から動くため、Docker Compose化は「バックエンド分離」(4.3節 Step1)以降に着手するのが自然な順序である。
 
@@ -267,7 +278,7 @@ MTGでDocker Composeでのローカル開発が合意された。目標構成は
 
 - **GCPプロジェクト**: 王さんの既存GCP環境を間借りする(MTG決定)。ただし、課金・IAM権限の分離方針(専用のGCPプロジェクトを新規に切るか、既存プロジェクト内にリソースを追加するか)は未確定 — 9節参照。
 - **Cloud Run**: バックエンドAPI(Hono/NestJS)をコンテナとしてデプロイ。Webhook受信(Didit等)に必要な公開URLを標準で持つ。
-- **CloudSQL**: 新規にインスタンスを立てるのではなく、王さんの環境に既に立っているCloudSQLインスタンスを流用する(追加コストが発生しないための判断)。そのため**DBエンジン(PostgreSQL/MySQL)は選択の余地がなく、既存インスタンスがどちらで動いているかを確認する作業になる** — 9節参照。Cloud Runからは Cloud SQL Auth Proxy / Cloud SQL言語コネクタ経由で接続する。
+- **Cloud SQL for PostgreSQL**: TrustcaのDBエンジンはPostgreSQLに確定し、`backend/src/db/migrations/`をsource of truthとする。王さんの環境にある既存PostgreSQL instanceの流用を第一候補とするが、major version、database作成権限、接続可否を確認する。互換性がないinstanceをMySQLのまま流用することはせず、構成を再判断する。Cloud RunからはCloud SQL ConnectorまたはCloud RunのCloud SQL接続を利用する。詳細は[database-schema.md](./database-schema.md)を参照。
 - **Secret Manager**: `DIDIT_API_KEY`・`DIDIT_WEBHOOK_SECRET_KEY`・PSA APIキー・Google Vision認証情報・(将来)ブロックチェーンのRPCキーやウォレット鍵を保管し、ブラウザには一切渡さない(ekyc-design.md 4.5節の方針を踏襲)。
 - **IaC**: MTGの合意通り、まず手動構築(GCPコンソール/`gcloud` CLI)で動くものを作り、後からyml等(Cloud Runサービス定義yaml、Terraform等)でコード化する。ツール選定は9節の未決定事項。
 
@@ -292,12 +303,12 @@ MTGの時点で結論が出ていない項目を一覧化する。実装着手�
 |---|---|---|---|
 | 1 | フロントエンドのホスティング先 | Firebase Hosting / GCP(Cloud Run等) | SSR要否、CDN・ドメイン管理の要件 |
 | 2 | バックエンドフレームワーク | Hono / NestJS | 開発速度優先(Hono)か構造・DI優先(NestJS)か |
-| 3 | CloudSQLのDBエンジン | PostgreSQL / MySQL(選択ではなく確認) | 王さんの環境に既存のCloudSQLインスタンスを流用する予定(追加コスト回避のため)。新規に選ぶのではなく、既存インスタンスがどちらのエンジンかを確認する |
+| 3 | 既存Cloud SQL for PostgreSQLの互換性 | major version、database作成権限、接続方式 | PostgreSQL採用は確定。既存instanceを流用できるかを接続前に確認する |
 | 4 | GCPプロジェクトの分離方針 | 既存プロジェクトに相乗り / 専用プロジェクトを新規作成 | 王さんの環境の課金・IAM制約 |
 | 5 | IaCツール | Terraform / Cloud Run yamlのみ / その他 | チームの習熟度、導入タイミング |
-| 6 | ブロックチェーンのチェーン選定 | 未定(JPYC対応チェーンとの整合が必要) | JPYC決済(5.4.2)を実施するかどうか |
-| 7 | ウォレット管理方式 | 自己管理(ユーザーウォレット) / バックエンド管理ウォレット | 5.4.2の実施要否、鍵管理・規制対応コスト |
-| 8 | PSA Public APIの利用プラン | 無料枠(約1コール/日) / 有料プラン | デモでの想定利用回数 |
+| 6 | 本番chain・RPC運用 | JPYC決済MVPの本番候補はPolygon(137)。実deployは未実施 | RPC冗長化、監査anchorと決済のchain統一、gas運用 |
+| 7 | 将来のエスクロー方式 | MVPは自己管理wallet間の直接送金で確定。エスクローは未決定 | 法務、返金、contract audit、upgrade権限 |
+| 8 | PSA Public APIの利用条件・上限 | 発行Tokenに紐づく契約条件を確認 | 公式公開資料に固定quotaの記載がないため、Token発行後にアカウント画面・PSA窓口で確認 |
 | 9 | 運営者による人手審査画面 | 実装する / デモ台本のみで代替 | [seller-onboarding-review-flow.md 5節](./seller-onboarding-review-flow.md#5-運営者確認フローは必要か)参照 |
 
 ---
@@ -311,7 +322,7 @@ ekyc-design.md 4.2節の優先順位に、本書で新たに設計した項目(�
 | 1 | 販売者登録・eKYC(Didit)・署名付きWebhook | ✅ 完了 |
 | 2 | 販売者ステータス・可視化 | ✅ 完了 |
 | 3 | バックエンド分離(Hono/NestJS) | ⬜(`backend/`のスケルトンのみ作成済み。eKYC業務ロジックの移植は未着手) |
-| 4 | CloudSQLへのDB移行 | ⬜ |
+| 4 | Cloud SQL for PostgreSQLへのDB移行 | 🟨 schema・migration基盤は実装済み。eKYC repository移植と実環境適用は未着手 |
 | 5 | Cloud Runへのデプロイ(BE)・ホスティング確定(FE) | ⬜ |
 | 6 | 基本的なカードの出品・購入機能 | ⬜ |
 | 7 | PSA Public API照会・正規化(PSAあり経路) | ⬜ |
@@ -319,8 +330,8 @@ ekyc-design.md 4.2節の優先順位に、本書で新たに設計した項目(�
 | 9 | Cert番号重複検知(DBユニーク制約) | ⬜ |
 | 10 | nonce付き所持確認 | ⬜ |
 | 11 | ルールベースRisk Engine・運営者による人手審査画面(`in_review`解消含む) | ⬜ |
-| 12 | 取引情報の非同期ブロックチェーン書き込み(改竄防止) | ⬜ |
-| 13 | JPYC決済連携(法務確認後・ストレッチ) | ⬜ |
+| 12 | 取引情報の非同期ブロックチェーン書き込み(改竄防止) | 🟨 local MVP・E2E実装済み。本番chain / Cloud Tasksは未着手 |
+| 13 | JPYC決済連携(法務確認後・ストレッチ) | 🟨 SIWE・直接送金・非同期receipt検証のlocal MVP/E2E実装済み。本番・法務確認は未着手 |
 | 14 | Docker Composeによるローカル開発環境整備 | ✅ 完了(frontend/backend/dbの基本疎通まで) |
 | 15 | IaC化(yml等) | ⬜ |
 
@@ -328,8 +339,8 @@ ekyc-design.md 4.2節の優先順位に、本書で新たに設計した項目(�
 
 ## 11. まとめ
 
-2026-08-06 MTGでの決定は、現行の「Next.js単体+SQLite」PoCを、**フロントエンド/バックエンド分離・CloudSQL・Cloud Run**という構成へ発展させる方向性を示した。既存の`poc/ekyc/`実装(特に`src/lib/didit/`配下)はフレームワーク非依存な設計になっているため移植コストは小さく、DB層とルーティング層の付け替えが移行の中心作業になる。
+2026-08-06 MTGでの決定は、現行の「Next.js単体+SQLite」PoCを、**フロントエンド/バックエンド分離・Cloud SQL for PostgreSQL・Cloud Run**という構成へ発展させる方向性を示した。既存の`poc/ekyc/`実装(特に`src/lib/didit/`配下)はフレームワーク非依存な設計になっているため移植コストは小さく、DB層とルーティング層の付け替えが移行の中心作業になる。
 
-MTGで新たに合意された「カードの真贋チェック(PSA/Vision APIの二経路)」「ブロックチェーン活用(改竄防止の証跡・JPYC決済)」は、ekyc-design.md既出の5層信頼モデルを土台にしつつ、後者は横断的な新機能として設計した。ただし後者は法務・鍵管理面でリスクが大きいため、ハッカソンではまず改竄防止の証跡書き込みに絞り、実決済はストレッチゴールとすることを推奨する。
+MTGで新たに合意された「カードの真贋チェック(PSA/Vision APIの二経路)」「ブロックチェーン活用(改竄防止の証跡・JPYC決済)」は、ekyc-design.md既出の5層信頼モデルを土台にしつつ、後者は横断的な新機能として設計した。監査anchorとJPYC直接送金はlocal MVPまで検証済みである。本番利用にはRPC・鍵・監視に加え、支払い・返金・エスクローに関する法務と運用の確認が残る。
 
-9節の未決定事項(特にフレームワーク・DBエンジン・GCPプロジェクト構成)は、実装着手前にチームで確定させる必要がある。
+9節の未決定事項(特にフロントエンドホスティング、既存Cloud SQL instanceの互換性、GCPプロジェクト構成)は、実環境へのデプロイ前にチームで確定させる必要がある。

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PsaVerificationForm } from "./psa-verification-form";
 import styles from "./page.module.css";
 
@@ -33,12 +34,17 @@ export default async function Home() {
           <span className={styles.brandMark} aria-hidden="true">T</span>
           <span>Trustca</span>
         </a>
-        <div className={styles.systemStatus}>
-          <span
-            className={health.ok ? styles.statusOnline : styles.statusOffline}
-            aria-hidden="true"
-          />
-          <span>{health.ok ? "照会基盤 稼働中" : "照会基盤 接続待ち"}</span>
+        <div className={styles.headerActions}>
+          <Link className={styles.paymentLink} href="/payments/demo">
+            JPYC決済MVP
+          </Link>
+          <div className={styles.systemStatus}>
+            <span
+              className={health.ok ? styles.statusOnline : styles.statusOffline}
+              aria-hidden="true"
+            />
+            <span>{health.ok ? "照会基盤 稼働中" : "照会基盤 接続待ち"}</span>
+          </div>
         </div>
       </header>
 

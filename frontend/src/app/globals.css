@@ -1,8 +1,11 @@
 :root {
-  --paper: #f4f5f6;
-  --ink: #141a21;
-  --muted: #606a75;
-  --line: #ccd2d8;
+  color-scheme: light;
+  --paper: #f4f0e6;
+  --ink: #17213c;
+  --muted: #606777;
+  --line: rgba(23, 33, 60, 0.16);
+  --indigo: #1f315f;
+  --seal: #b84630;
   --blue: #125fa8;
   --blue-deep: #0a3f73;
   --red: #d92f36;
@@ -23,9 +26,12 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--paper);
-  font-family: "Yu Gothic", "YuGothic", "Hiragino Kaku Gothic ProN",
-    "Noto Sans JP", sans-serif;
+  color: var(--ink);
+  background:
+    linear-gradient(rgba(23, 33, 60, 0.035) 1px, transparent 1px),
+    var(--paper);
+  background-size: 100% 32px;
+  font-family: "Yu Mincho", "Hiragino Mincho ProN", "Noto Serif JP", serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -41,4 +47,8 @@ button {
 ::selection {
   color: var(--white);
   background: var(--blue);
+}
+
+a {
+  color: inherit;
 }

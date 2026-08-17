@@ -7,14 +7,24 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
+    "worker:onchain": "tsx src/workers/onchain-anchor.ts",
+    "worker:payment": "tsx src/workers/payment-verification.ts",
+    "db:migrate": "node scripts/migrate.mjs",
+    "db:migrate:status": "node scripts/migrate.mjs --status",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:db": "node scripts/test-migrations.mjs",
+    "test:onchain:db": "tsx scripts/test-onchain-outbox.ts",
+    "test:onchain:e2e": "node scripts/test-onchain-e2e.mjs",
+    "test:payment:e2e": "node scripts/test-payment-e2e.mjs"
   },
   "dependencies": {
-    "@hono/node-server": "^1",
+    "@hono/node-server": "^2.1.0",
     "hono": "^4",
-    "pg": "^8"
+    "jose": "^6.2.8",
+    "pg": "^8",
+    "viem": "^2.55.13"
   },
   "devDependencies": {
     "@eslint/js": "^9",
