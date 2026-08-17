@@ -35,6 +35,9 @@ export default async function Home() {
           <span>Trustca</span>
         </a>
         <div className={styles.headerActions}>
+          <Link className={styles.paymentLink} href="/sellers/register">
+            販売者登録・本人確認
+          </Link>
           <Link className={styles.paymentLink} href="/payments/demo">
             JPYC決済MVP
           </Link>

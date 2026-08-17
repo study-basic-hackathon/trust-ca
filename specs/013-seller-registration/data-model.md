@@ -1,6 +1,6 @@
 # Data Model: 販売者登録フロー実装
 
-既存の`backend/src/db/migrations/0001_initial_schema.sql`のテーブルをそのまま使う(新規migrationなし)。以下は本機能が読み書きする範囲の抜粋。
+既存の`backend/src/db/migrations/0001_initial_schema.sql`のテーブルをそのまま使う。Diditのセッション遷移先URLを保持するため`seller_verifications.session_url`だけを`0003_seller_verification_session_url.sql`で追加する(research.md #3)。以下は本機能が読み書きする範囲の抜粋。
 
 ## Entity関係
 
@@ -32,6 +32,7 @@ erDiagram
         varchar status
         varchar provider_status
         jsonb checks
+        text session_url
         varchar source
         timestamptz requested_at
         timestamptz decided_at

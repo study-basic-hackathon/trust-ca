@@ -24,11 +24,11 @@
 
 ## 3. DBスキーマのギャップ確認
 
-**Decision**: 新規migrationは追加しない。既存`backend/src/db/migrations/0001_initial_schema.sql`の`users`・`seller_profiles`・`seller_limits`・`seller_verifications`・`verification_events`・`webhook_events`をそのまま使う。
+**Decision**: `seller_verifications`/`verification_events`の`source`列は既に`'created' | 'webhook' | 'poll' | 'operator'`をCHECK制約でサポートしており(0001行107-176)、運営者判断を追加するための列追加・制約変更は不要と確認した。`seller_verifications_one_active_per_seller_uq`(進行中セッション1件制限)、`seller_verifications_seller_created_idx`(販売者別の履歴検索)も既存のまま利用できる。ただし実装時に、Diditのセッション遷移先URLがセッション作成レスポンスにしか含まれず(`poc/ekyc/src/lib/didit/client.ts`の`getSessionDecision`はURLを返さない)、既存の進行中セッションを再開する画面(US2の受入条件2)のために保持先が必要なことが判明したため、`seller_verifications.session_url`(nullable text)を追加する`0003_seller_verification_session_url.sql`のみ新規migrationとして追加する。
 
-**Rationale**: `seller_verifications`/`verification_events`の`source`列は既に`'created' | 'webhook' | 'poll' | 'operator'`をCHECK制約でサポートしており(0001行107-176)、運営者判断を追加するための列追加・制約変更が不要であることを確認した。`seller_verifications_one_active_per_seller_uq`(進行中セッション1件制限)、`seller_verifications_seller_created_idx`(販売者別の履歴検索)も既存のまま利用できる。
+**Rationale**: `session_url`はPIIでも秘密情報でもなく(`session_token`のような秘密値は含まない)、既存のPII最小化方針(FR-012)を損なわない。他のテーブル・列は当初の想定通り変更不要。
 
-**Alternatives considered**: 運営者向けの「審査中」一覧クエリ専用に`seller_verifications(status)`のindexを新規追加する案は、MVP規模のデータ量では既存indexで十分と判断し、時期尚早な最適化として見送った。実装時に性能上の問題が実測された場合は別migrationとして追加を検討する。
+**Alternatives considered**: 運営者向けの「審査中」一覧クエリ専用に`seller_verifications(status)`のindexを新規追加する案は、MVP規模のデータ量では既存indexで十分と判断し、時期尚早な最適化として見送った。セッションURLを`checks`(jsonb)列へ間借りさせる案は、`checks`の意味(本人確認書類・生体・顔照合等の結果)をなし崩しに拡張してしまうため却下し、専用列を追加する方を選んだ。
 
 ## 4. Webhook署名検証ロジック
 

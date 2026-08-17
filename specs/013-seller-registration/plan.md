@@ -4,7 +4,7 @@
 
 ## Summary
 
-`poc/ekyc/`で検証済みの表示名登録〜Didit eKYC本人確認〜webhook/pollingによる状態確認〜運営者による審査中(in_review)確定までのフローを、`backend/`(Hono/PostgreSQL)へ移植し、`frontend/`(Next.js)へ業務ロジックを持たない薄いUIとして追加する。DBスキーマはIssue #14で作成済みの`users`/`seller_profiles`/`seller_verifications`/`verification_events`/`webhook_events`をそのまま使い、新規migrationは行わない前提とする。
+`poc/ekyc/`で検証済みの表示名登録〜Didit eKYC本人確認〜webhook/pollingによる状態確認〜運営者による審査中(in_review)確定までのフローを、`backend/`(Hono/PostgreSQL)へ移植し、`frontend/`(Next.js)へ業務ロジックを持たない薄いUIとして追加する。DBスキーマはIssue #14で作成済みの`users`/`seller_profiles`/`seller_verifications`/`verification_events`/`webhook_events`をそのまま使う。実装時に判明したDiditセッションURL保持のための小さな追加列(`session_url`)のみ新規migrationとして加える(research.md #3)。
 
 ## Technical Context
 

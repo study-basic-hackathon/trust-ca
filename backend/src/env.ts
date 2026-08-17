@@ -45,6 +45,18 @@ export type PaymentConfig = {
   challengeTtlSeconds: number;
 };
 
+export type DiditConfig = {
+  enabled: boolean;
+  baseUrl: string;
+  apiKey: string;
+  workflowId: string;
+  webhookSecret: string;
+};
+
+export type AdminConfig = {
+  token: string;
+};
+
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const PRIVATE_KEY_PATTERN = /^0x[0-9a-fA-F]{64}$/;
 
@@ -192,4 +204,34 @@ export function getPaymentConfig(): PaymentConfig {
     siweUri,
     challengeTtlSeconds: positiveInteger("PAYMENT_CHALLENGE_TTL_SECONDS", 300),
   };
+}
+
+export function getDiditConfig(): DiditConfig {
+  const enabled = process.env.DIDIT_MVP_ENABLED === "true";
+  const apiKey = process.env.DIDIT_API_KEY?.trim() ?? "";
+  const workflowId = process.env.DIDIT_WORKFLOW_ID?.trim() ?? "";
+  const webhookSecret = process.env.DIDIT_WEBHOOK_SECRET_KEY?.trim() ?? "";
+
+  if (enabled) {
+    required("DIDIT_API_KEY");
+    required("DIDIT_WORKFLOW_ID");
+    required("DIDIT_WEBHOOK_SECRET_KEY");
+  }
+
+  return {
+    enabled,
+    baseUrl:
+      process.env.DIDIT_BASE_URL?.trim() || "https://verification.didit.me",
+    apiKey,
+    workflowId,
+    webhookSecret,
+  };
+}
+
+export function getAdminConfig(): AdminConfig {
+  const token = process.env.ADMIN_API_TOKEN?.trim() ?? "";
+  if (token && token.length < 32) {
+    throw new Error("ADMIN_API_TOKENは32文字以上で指定してください。");
+  }
+  return { token };
 }
