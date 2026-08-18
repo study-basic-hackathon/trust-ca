@@ -39,8 +39,18 @@ const STATUS_LABEL: Record<VerificationStatus, string> = {
   expired: "期限切れ",
 };
 
-const POLLING_STATUSES = new Set<VerificationStatus>(["not_started", "in_progress"]);
-const POLL_INTERVAL_MS = 5_000;
+// 本人確認中は結果を待っている最中なので短い間隔、審査中は運営者判断待ちで
+// 即時性が求められないため長い間隔にする。確定状態(承認/否認等)ではpollingを止める。
+const RESUMABLE_STATUSES = new Set<VerificationStatus>(["not_started", "in_progress"]);
+const FAST_POLL_INTERVAL_MS = 5_000;
+const SLOW_POLL_INTERVAL_MS = 30_000;
+
+function pollIntervalFor(status: VerificationStatus | undefined): number | false {
+  if (!status) return false;
+  if (RESUMABLE_STATUSES.has(status)) return FAST_POLL_INTERVAL_MS;
+  if (status === "in_review") return SLOW_POLL_INTERVAL_MS;
+  return false;
+}
 
 export default function SellerStatusPage() {
   const params = useParams<{ sellerId: string }>();
@@ -55,10 +65,7 @@ export default function SellerStatusPage() {
     queryKey: ["seller-verification", sellerId],
     queryFn: () =>
       api<VerificationView>(`/api/v1/sellers/${sellerId}/verification?refresh=1`),
-    refetchInterval: (query) => {
-      const status = query.state.data?.verification?.status;
-      return status && POLLING_STATUSES.has(status) ? POLL_INTERVAL_MS : false;
-    },
+    refetchInterval: (query) => pollIntervalFor(query.state.data?.verification?.status),
   });
 
   const startVerification = useMutation({
@@ -96,7 +103,7 @@ export default function SellerStatusPage() {
           </p>
           <p>出品可否：{view.isSellingAllowed ? "出品可能" : "出品不可"}</p>
 
-          {!view.verification || POLLING_STATUSES.has(view.verification.status) ? (
+          {!view.verification || RESUMABLE_STATUSES.has(view.verification.status) ? (
             <button
               onClick={() => startVerification.mutate()}
               disabled={startVerification.isPending}
