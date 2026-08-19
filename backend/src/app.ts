@@ -2,24 +2,32 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { pool } from "./db.js";
 import {
+  getAdminConfig,
+  getDiditConfig,
   getOnchainConfig,
   getPaymentConfig,
   getPsaConfig,
 } from "./env.js";
 import { createFixedWindowRateLimiter } from "./middleware/rate-limit.js";
+import { createAdminVerificationRoute } from "./routes/admin-verifications.js";
 import { healthRoute } from "./routes/health.js";
+import { createKycRoute } from "./routes/kyc.js";
 import { createOnchainAnchorRoute } from "./routes/onchain-anchors.js";
 import { createPaymentRoute } from "./routes/payments.js";
 import { createPsaVerificationRoute } from "./routes/psa-verifications.js";
+import { createSellerRoute } from "./routes/sellers.js";
 import { createWalletAuthRoute } from "./routes/wallet-auth.js";
+import { createWebhookRoute } from "./routes/webhooks.js";
 import { PsaVerificationService } from "./services/psa.js";
+
+const frontendOrigin = process.env.FRONTEND_ORIGIN ?? "http://localhost:3000";
 
 export const app = new Hono();
 
 app.use(
   "*",
   cors({
-    origin: process.env.FRONTEND_ORIGIN ?? "http://localhost:3000",
+    origin: frontendOrigin,
   }),
 );
 
@@ -42,3 +50,20 @@ app.route(
 const paymentConfig = getPaymentConfig();
 app.route("/", createWalletAuthRoute({ pool, config: paymentConfig }));
 app.route("/", createPaymentRoute({ pool, config: paymentConfig }));
+
+const diditConfig = getDiditConfig();
+app.route("/", createSellerRoute({ pool }));
+app.route(
+  "/",
+  createKycRoute({
+    pool,
+    diditConfig,
+    walletConfig: paymentConfig,
+    frontendOrigin,
+  }),
+);
+app.route("/", createWebhookRoute({ pool, diditConfig }));
+app.route(
+  "/",
+  createAdminVerificationRoute({ pool, adminConfig: getAdminConfig() }),
+);

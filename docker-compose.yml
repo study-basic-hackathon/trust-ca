@@ -50,6 +50,12 @@ services:
       PAYMENT_SESSION_SECRET: ${PAYMENT_SESSION_SECRET:-local-payment-session-secret-change-me}
       PAYMENT_SIWE_DOMAIN: localhost:${FRONTEND_PORT:-3000}
       PAYMENT_SIWE_URI: http://localhost:${FRONTEND_PORT:-3000}
+      DIDIT_MVP_ENABLED: ${DIDIT_MVP_ENABLED:-false}
+      DIDIT_BASE_URL: ${DIDIT_BASE_URL:-https://verification.didit.me}
+      DIDIT_API_KEY: ${DIDIT_API_KEY:-}
+      DIDIT_WORKFLOW_ID: ${DIDIT_WORKFLOW_ID:-}
+      DIDIT_WEBHOOK_SECRET_KEY: ${DIDIT_WEBHOOK_SECRET_KEY:-}
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-local-admin-token-change-me-0123456789}
     volumes:
       - ./backend:/app
       - /app/node_modules

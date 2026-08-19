@@ -420,23 +420,34 @@ Cloud RunからCloud SQL for PostgreSQLへはCloud SQL Node.js Connectorまた�
 | Method | Path | 用途 | 状態 |
 |---|---|---|---|
 | `GET` | `/healthz` | backendとDBの疎通確認 | backend実装済み |
-| `POST` | `/api/sellers` | PoC用販売者作成 | `poc/ekyc/`のみ |
-| `POST` | `/api/kyc/session` | PoC用Diditセッション作成 | `poc/ekyc/`のみ |
-| `GET` | `/api/kyc/status` | PoC用eKYC状態取得・任意poll | `poc/ekyc/`のみ |
-| `POST` | `/api/webhooks/didit` | PoC用Didit Webhook | `poc/ekyc/`のみ |
-
-PoCのAPI pathは互換性を保証しない。backend移植時は次節の`/api/v1`へ整理する。
+| `POST` | `/api/v1/sellers` | 販売者プロフィール作成 | backend実装済み(#13) |
+| `GET` | `/api/v1/sellers/{sellerId}` | 販売者公開情報取得 | backend実装済み(#13) |
+| `POST` | `/api/v1/sellers/{sellerId}/kyc-sessions` | Diditセッション作成 | backend実装済み(#13) |
+| `GET` | `/api/v1/sellers/{sellerId}/verification` | 正規化eKYC状態取得・任意poll | backend実装済み(#13) |
+| `POST` | `/api/v1/webhooks/didit` | 署名付きDidit Webhook受信 | backend実装済み(#13) |
+| `GET` | `/api/v1/admin/verifications` | `in_review`セッション一覧 | backend実装済み(#13) |
+| `POST` | `/api/v1/admin/verifications/{sessionId}/decision` | `in_review`の承認/却下 | backend実装済み(#13) |
+| `POST` | `/api/sellers` | PoC用販売者作成 | `poc/ekyc/`のみ(参照専用、移植済み) |
+| `POST` | `/api/kyc/session` | PoC用Diditセッション作成 | `poc/ekyc/`のみ(参照専用、移植済み) |
+| `GET` | `/api/kyc/status` | PoC用eKYC状態取得・任意poll | `poc/ekyc/`のみ(参照専用、移植済み) |
+| `POST` | `/api/webhooks/didit` | PoC用Didit Webhook | `poc/ekyc/`のみ(参照専用、移植済み) |
 
 ### 6.3 販売者・eKYC API
 
-| Method | Path | 用途 | 認可 | 状態 |
-|---|---|---|---|---|
-| `POST` | `/api/v1/sellers` | 販売者プロフィール作成 | ログインユーザー | 未実装 |
-| `GET` | `/api/v1/sellers/{sellerId}` | 販売者公開情報取得 | 公開/項目制限 | 未実装 |
-| `POST` | `/api/v1/sellers/{sellerId}/kyc-sessions` | Diditセッション作成 | 本人 | 移植対象 |
-| `GET` | `/api/v1/sellers/{sellerId}/verification` | 正規化eKYC状態取得 | 本人/運営者 | 移植対象 |
-| `POST` | `/api/v1/webhooks/didit` | 署名付きWebhook受信 | Didit HMAC | 移植対象 |
-| `POST` | `/api/v1/admin/verifications/{sessionId}/decision` | `in_review`の承認/却下 | 運営者 | 未実装 |
+§6.2の表と同一。実装は`backend/src/routes/{sellers,kyc,webhooks,admin-verifications}.ts`・`backend/src/services/{sellers,verifications,didit/*}.ts`・`backend/src/db/{sellers,verifications}.ts`(仕様は[specs/013-seller-registration/](../../specs/013-seller-registration/)を参照)。
+
+認可は次の通り実装している(MVP時点の暫定実装。厳密なRBACへの強化は別Issue):
+
+| Path | 認可の実装 |
+|---|---|
+| `POST /api/v1/sellers` | 認可なし(表示名だけで作成。PoCと同じ暫定運用) |
+| `GET /api/v1/sellers/{sellerId}` | 公開(PIIを含まない) |
+| `POST /api/v1/sellers/{sellerId}/kyc-sessions` | `Authorization: Bearer <wallet session>`があれば本人確認、なければ`sellerId`ベースで許可 |
+| `GET /api/v1/sellers/{sellerId}/verification` | `POST .../kyc-sessions`と同様(任意) |
+| `POST /api/v1/webhooks/didit` | Didit HMAC署名(V2→Simple→raw、`created_at`基準±300秒) |
+| `GET, POST /api/v1/admin/verifications*` | `Authorization: Bearer <ADMIN_API_TOKEN>`共有シークレット(未設定なら常に401) |
+
+運営者による`in_review`解消は[seller-onboarding-review-flow.md](./seller-onboarding-review-flow.md) §5.1の最小実装案(共有シークレット、承認/却下ボタンのみ)通りに実装した。`approved`/`declined`確定済みの上書きは拒否する。
 
 ### 6.4 カード・PSA・画像解析 API
 
