@@ -1,0 +1,109 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border: 1px solid #d8d8d8;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.panel h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+}
+
+.field input,
+.field select {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #bbb;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.submit {
+  align-self: flex-start;
+  padding: 0.55rem 1.1rem;
+  border: none;
+  border-radius: 6px;
+  background: #1a1a1a;
+  color: #fff;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.message {
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.errorMessage {
+  color: #b3261e;
+}
+
+.successMessage {
+  color: #1e6b3a;
+}
+
+.resultCard {
+  margin-top: 0.5rem;
+  padding: 0.9rem;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  background: #fafafa;
+}
+
+.resultCard[data-status="completed"] {
+  border-color: #1e6b3a;
+}
+
+.resultCard[data-status="in_review"],
+.resultCard[data-status="failed"] {
+  border-color: #b3261e;
+}
+
+.resultStatus {
+  font-weight: 600;
+  margin: 0 0 0.3rem;
+}
+
+.resultDetail {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+.ocrText {
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  color: #555;
+  max-height: 6rem;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px dashed #ccc;
+  border-radius: 6px;
+  padding: 0.5rem;
+}
+
+.disclaimer {
+  font-size: 0.78rem;
+  color: #777;
+  margin-top: 0.5rem;
+}

@@ -5,14 +5,19 @@ import {
   getOnchainConfig,
   getPaymentConfig,
   getPsaConfig,
+  getVisionConfig,
 } from "./env.js";
 import { createFixedWindowRateLimiter } from "./middleware/rate-limit.js";
+import { createCardImageAnalysesRoute } from "./routes/card-image-analyses.js";
+import { createCardImagesRoute } from "./routes/card-images.js";
+import { createCardImageUploadsRoute } from "./routes/card-image-uploads.js";
 import { healthRoute } from "./routes/health.js";
 import { createOnchainAnchorRoute } from "./routes/onchain-anchors.js";
 import { createPaymentRoute } from "./routes/payments.js";
 import { createPsaVerificationRoute } from "./routes/psa-verifications.js";
 import { createWalletAuthRoute } from "./routes/wallet-auth.js";
 import { PsaVerificationService } from "./services/psa.js";
+import { VisionAnnotationService } from "./services/vision.js";
 
 export const app = new Hono();
 
@@ -42,3 +47,26 @@ app.route(
 const paymentConfig = getPaymentConfig();
 app.route("/", createWalletAuthRoute({ pool, config: paymentConfig }));
 app.route("/", createPaymentRoute({ pool, config: paymentConfig }));
+
+const visionConfig = getVisionConfig();
+const visionService = new VisionAnnotationService({
+  apiBaseUrl: visionConfig.apiBaseUrl,
+  timeoutMs: visionConfig.timeoutMs,
+});
+app.route(
+  "/",
+  createCardImageUploadsRoute({ visionConfig, paymentConfig }),
+);
+app.route(
+  "/",
+  createCardImagesRoute({ pool, visionConfig, paymentConfig }),
+);
+app.route(
+  "/",
+  createCardImageAnalysesRoute({
+    pool,
+    visionConfig,
+    paymentConfig,
+    visionService,
+  }),
+);

@@ -444,9 +444,13 @@ PoCのAPI pathは互換性を保証しない。backend移植時は次節の`/api
 |---|---|---|---|---|
 | `POST` | `/api/v1/cards/psa-verifications` | Cert NumberをPSAへ照会 | 販売者 | #15で実装 |
 | `GET` | `/api/v1/cards/psa-verifications/{verificationId}` | 保存済み照会結果取得 | 販売者/運営者 | #15で実装 |
-| `POST` | `/api/v1/uploads/card-images` | 署名付きupload URL発行 | 販売者/購入者 | #16対象 |
-| `POST` | `/api/v1/card-image-analyses` | Vision/Gemini解析ジョブ作成 | 販売者/購入者 | #16対象 |
-| `GET` | `/api/v1/card-image-analyses/{analysisId}` | 解析状態・正規化結果取得 | 関係者/運営者 | #16対象 |
+| `POST` | `/api/v1/uploads/card-images` | 署名付きupload URL発行 | 販売者/購入者 | #16で実装 |
+| `POST` | `/api/v1/cards/{cardId}/images` | アップロード完了をbackendへ登録(Cloud Storage側の検証込み) | 販売者/購入者 | #16で実装 |
+| `POST` | `/api/v1/card-image-analyses` | Vision APIによるOCR・ラベル・領域検出の実行(同期) | 販売者/購入者 | #16で実装(Vision APIのみ。Geminiは対象外) |
+| `GET` | `/api/v1/card-image-analyses/{analysisId}` | 解析状態・正規化結果取得 | 関係者/運営者 | #16で実装 |
+| `GET` | `/api/v1/admin/card-image-analyses` | `要確認`ケースの一覧取得(内部トークン認可) | 運営者 | #16で実装(#16スコープの追加endpoint) |
+
+`POST /card-image-analyses`は、当初想定していたVision+Gemini+自社比較ロジックによる物理個体照合ではなく、Vision APIのOCR結果と出品時申告内容(`cards.name`・`cards.card_number`)の内容整合性チェックのみを行う(specs/019-vision-card-authenticity/spec.md参照)。物理的な同一個体照合は別タスクの対象。
 
 `POST /cards/psa-verifications`の最小request/response:
 

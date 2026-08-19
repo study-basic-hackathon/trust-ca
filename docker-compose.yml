@@ -50,6 +50,13 @@ services:
       PAYMENT_SESSION_SECRET: ${PAYMENT_SESSION_SECRET:-local-payment-session-secret-change-me}
       PAYMENT_SIWE_DOMAIN: localhost:${FRONTEND_PORT:-3000}
       PAYMENT_SIWE_URI: http://localhost:${FRONTEND_PORT:-3000}
+      VISION_MVP_ENABLED: ${VISION_MVP_ENABLED:-false}
+      VISION_STORAGE_BUCKET: ${VISION_STORAGE_BUCKET:-}
+      VISION_API_BASE_URL: ${VISION_API_BASE_URL:-https://vision.googleapis.com/v1}
+      VISION_API_TIMEOUT_MS: ${VISION_API_TIMEOUT_MS:-10000}
+      VISION_UPLOAD_URL_TTL_SECONDS: ${VISION_UPLOAD_URL_TTL_SECONDS:-900}
+      VISION_ADMIN_TOKEN: ${VISION_ADMIN_TOKEN:-local-vision-admin-token-change-me}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
     volumes:
       - ./backend:/app
       - /app/node_modules

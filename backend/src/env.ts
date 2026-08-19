@@ -45,6 +45,15 @@ export type PaymentConfig = {
   challengeTtlSeconds: number;
 };
 
+export type VisionConfig = {
+  enabled: boolean;
+  storageBucket: string;
+  apiBaseUrl: string;
+  timeoutMs: number;
+  uploadUrlTtlSeconds: number;
+  adminToken: string;
+};
+
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const PRIVATE_KEY_PATTERN = /^0x[0-9a-fA-F]{64}$/;
 
@@ -191,5 +200,33 @@ export function getPaymentConfig(): PaymentConfig {
     siweDomain,
     siweUri,
     challengeTtlSeconds: positiveInteger("PAYMENT_CHALLENGE_TTL_SECONDS", 300),
+  };
+}
+
+export function getVisionConfig(): VisionConfig {
+  const enabled = process.env.VISION_MVP_ENABLED === "true";
+  const storageBucket = process.env.VISION_STORAGE_BUCKET?.trim() ?? "";
+  const adminToken = process.env.VISION_ADMIN_TOKEN?.trim() ?? "";
+
+  if (enabled) {
+    required("VISION_STORAGE_BUCKET");
+    required("VISION_ADMIN_TOKEN");
+    if (adminToken.length < 32) {
+      throw new Error("VISION_ADMIN_TOKENは32文字以上で指定してください。");
+    }
+  }
+
+  return {
+    enabled,
+    storageBucket,
+    apiBaseUrl: (
+      process.env.VISION_API_BASE_URL ?? "https://vision.googleapis.com/v1"
+    ).replace(/\/$/, ""),
+    timeoutMs: positiveIntegerOrFallback("VISION_API_TIMEOUT_MS", 10_000),
+    uploadUrlTtlSeconds: positiveIntegerOrFallback(
+      "VISION_UPLOAD_URL_TTL_SECONDS",
+      900,
+    ),
+    adminToken,
   };
 }
