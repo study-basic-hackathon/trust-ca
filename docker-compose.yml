@@ -56,9 +56,21 @@ services:
       DIDIT_WORKFLOW_ID: ${DIDIT_WORKFLOW_ID:-}
       DIDIT_WEBHOOK_SECRET_KEY: ${DIDIT_WEBHOOK_SECRET_KEY:-}
       ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-local-admin-token-change-me-0123456789}
+      VISION_MVP_ENABLED: ${VISION_MVP_ENABLED:-false}
+      VISION_STORAGE_BUCKET: ${VISION_STORAGE_BUCKET:-}
+      VISION_API_BASE_URL: ${VISION_API_BASE_URL:-https://vision.googleapis.com/v1}
+      VISION_API_TIMEOUT_MS: ${VISION_API_TIMEOUT_MS:-10000}
+      VISION_UPLOAD_URL_TTL_SECONDS: ${VISION_UPLOAD_URL_TTL_SECONDS:-900}
+      VISION_ADMIN_TOKEN: ${VISION_ADMIN_TOKEN:-local-vision-admin-token-change-me}
+      # コンテナ内の固定パス。実体はvolumesでホスト側のADCファイルをマウントする。
+      GOOGLE_APPLICATION_CREDENTIALS: /secrets/gcp-adc.json
     volumes:
       - ./backend:/app
       - /app/node_modules
+      # ローカル開発用。`gcloud auth application-default login
+      # --impersonate-service-account=...`で発行されたADCファイルを読み取り専用でマウントする。
+      # 未設定の場合は`/dev/null`をマウントするだけで、Vision機能が無効な他の開発者には影響しない。
+      - ${GOOGLE_APPLICATION_CREDENTIALS_HOST:-/dev/null}:/secrets/gcp-adc.json:ro
     depends_on:
       migrate:
         condition: service_completed_successfully

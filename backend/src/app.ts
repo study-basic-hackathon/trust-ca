@@ -7,9 +7,13 @@ import {
   getOnchainConfig,
   getPaymentConfig,
   getPsaConfig,
+  getVisionConfig,
 } from "./env.js";
 import { createFixedWindowRateLimiter } from "./middleware/rate-limit.js";
 import { createAdminVerificationRoute } from "./routes/admin-verifications.js";
+import { createCardImageAnalysesRoute } from "./routes/card-image-analyses.js";
+import { createCardImagesRoute } from "./routes/card-images.js";
+import { createCardImageUploadsRoute } from "./routes/card-image-uploads.js";
 import { healthRoute } from "./routes/health.js";
 import { createKycRoute } from "./routes/kyc.js";
 import { createOnchainAnchorRoute } from "./routes/onchain-anchors.js";
@@ -19,6 +23,7 @@ import { createSellerRoute } from "./routes/sellers.js";
 import { createWalletAuthRoute } from "./routes/wallet-auth.js";
 import { createWebhookRoute } from "./routes/webhooks.js";
 import { PsaVerificationService } from "./services/psa.js";
+import { VisionAnnotationService } from "./services/vision.js";
 
 const frontendOrigin = process.env.FRONTEND_ORIGIN ?? "http://localhost:3000";
 
@@ -66,4 +71,27 @@ app.route("/", createWebhookRoute({ pool, diditConfig }));
 app.route(
   "/",
   createAdminVerificationRoute({ pool, adminConfig: getAdminConfig() }),
+);
+
+const visionConfig = getVisionConfig();
+const visionService = new VisionAnnotationService({
+  apiBaseUrl: visionConfig.apiBaseUrl,
+  timeoutMs: visionConfig.timeoutMs,
+});
+app.route(
+  "/",
+  createCardImageUploadsRoute({ visionConfig, paymentConfig }),
+);
+app.route(
+  "/",
+  createCardImagesRoute({ pool, visionConfig, paymentConfig }),
+);
+app.route(
+  "/",
+  createCardImageAnalysesRoute({
+    pool,
+    visionConfig,
+    paymentConfig,
+    visionService,
+  }),
 );
