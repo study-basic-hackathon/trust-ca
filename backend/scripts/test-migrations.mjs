@@ -33,10 +33,12 @@ const expectedTables = [
   "card_images",
   "cards",
   "listings",
+  "notifications",
   "onchain_outbox",
   "order_shipping_addresses",
   "orders",
   "payment_intents",
+  "possession_challenges",
   "psa_verifications",
   "schema_migrations",
   "seller_limits",
@@ -73,7 +75,7 @@ try {
   ]);
   assert.deepEqual(
     concurrentRuns.map((result) => result.applied.length).sort(),
-    [0, 4],
+    [0, 6],
     "同時実行時もmigrationは1回だけ適用されること",
   );
   console.log("  OK: advisory lockで同時実行を直列化");

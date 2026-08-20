@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import type { OnchainConfig } from "../env.js";
+import { insertNotification } from "./notifications.js";
 import { appendAuditAnchorOnClient } from "./onchain-outbox.js";
 
 export type OrderStatus =
@@ -56,7 +57,8 @@ export class OrderRepositoryError extends Error {
       | "LISTING_NOT_AVAILABLE"
       | "SELF_PURCHASE_FORBIDDEN"
       | "ORDER_STATE_CONFLICT"
-      | "SHIPMENT_ALREADY_REGISTERED",
+      | "SHIPMENT_ALREADY_REGISTERED"
+      | "DISPUTE_STATE_CONFLICT",
     message: string,
   ) {
     super(message);
@@ -367,6 +369,17 @@ export async function registerShipment(
       }
       throw error;
     }
+    const buyerResult = await client.query(
+      `SELECT buyer_id FROM orders WHERE id = $1`,
+      [input.orderId],
+    );
+    await insertNotification(client, {
+      userId: String(buyerResult.rows[0].buyer_id),
+      type: "order_shipped",
+      title: "商品が発送されました",
+      body: "配送状況は取引詳細の追跡情報からご確認いただけます。",
+      orderId: input.orderId,
+    });
     if (input.onchainConfig.enabled) {
       // 追跡番号は準識別子のためpayloadへ含めない(shipping-flow.md §3.3)
       await appendAuditAnchorOnClient(client, {
@@ -439,6 +452,17 @@ export async function confirmDelivery(
         WHERE order_id = $1`,
       [input.orderId, input.retentionDays],
     );
+    const sellerResult = await client.query(
+      `SELECT seller_id FROM orders WHERE id = $1`,
+      [input.orderId],
+    );
+    await insertNotification(client, {
+      userId: String(sellerResult.rows[0].seller_id),
+      type: "order_completed",
+      title: "取引が完了しました",
+      body: "購入者が受領を確認しました。ご利用ありがとうございました。",
+      orderId: input.orderId,
+    });
     if (input.onchainConfig.enabled) {
       await appendAuditAnchorOnClient(client, {
         idempotencyKey: `order.completed:${input.orderId}`,
@@ -450,6 +474,143 @@ export async function confirmDelivery(
         payload: { orderId: input.orderId, status: "completed" },
         chainId: input.onchainConfig.chainId,
         contractAddress: input.onchainConfig.contractAddress,
+      });
+    }
+  });
+}
+
+
+/**
+ * 支払い前の注文キャンセル(screen-design.md §6.3)。
+ * order pending_payment→cancelled と listing reserved→active を
+ * 同一transactionで行う。
+ */
+export async function cancelOrder(
+  pool: Pool,
+  input: { orderId: string; buyerId: string },
+): Promise<void> {
+  return withTransaction(pool, async (client) => {
+    const orderResult = await client.query(
+      `UPDATE orders
+          SET status = 'cancelled'
+        WHERE id = $1 AND buyer_id = $2 AND status = 'pending_payment'
+      RETURNING listing_id, seller_id`,
+      [input.orderId, input.buyerId],
+    );
+    if (orderResult.rowCount !== 1) {
+      throw new OrderRepositoryError(
+        "ORDER_STATE_CONFLICT",
+        "キャンセルできません。支払い手続きが始まっている可能性があります。",
+      );
+    }
+    await client.query(
+      `UPDATE listings
+          SET status = 'active', closed_at = NULL
+        WHERE id = $1 AND status = 'reserved'`,
+      [orderResult.rows[0].listing_id],
+    );
+    await insertNotification(client, {
+      userId: String(orderResult.rows[0].seller_id),
+      type: "order_cancelled",
+      title: "注文がキャンセルされました",
+      body: "商品は再度公開されました。",
+      orderId: input.orderId,
+    });
+  });
+}
+
+/**
+ * 紛争の申告(screen-design.md §6.4)。
+ * paid / shipped / delivered から disputed へ遷移し、以後の発送・受領操作を止める。
+ */
+export async function openDispute(
+  pool: Pool,
+  input: {
+    orderId: string;
+    buyerId: string;
+    reasonCode: string;
+    description: string;
+  },
+): Promise<void> {
+  return withTransaction(pool, async (client) => {
+    const orderResult = await client.query(
+      `UPDATE orders
+          SET status = 'disputed',
+              dispute_reason_code = $3,
+              dispute_description = $4,
+              disputed_at = CURRENT_TIMESTAMP
+        WHERE id = $1 AND buyer_id = $2
+          AND status IN ('paid', 'shipped', 'delivered')
+      RETURNING seller_id`,
+      [input.orderId, input.buyerId, input.reasonCode, input.description],
+    );
+    if (orderResult.rowCount !== 1) {
+      throw new OrderRepositoryError(
+        "DISPUTE_STATE_CONFLICT",
+        "この注文は現在問題を報告できる状態ではありません。",
+      );
+    }
+    await insertNotification(client, {
+      userId: String(orderResult.rows[0].seller_id),
+      type: "order_disputed",
+      title: "取引に問題が報告されました",
+      body: "運営が調査します。取引詳細をご確認ください。",
+      orderId: input.orderId,
+    });
+  });
+}
+
+/**
+ * 運営者による紛争処理(screen-design.md §6.4)。
+ * resolution=refunded は返金済み(終端)、resume は申告前の状態へ復帰する。
+ * 復帰先は発送・受領の実績timestampから決定論的に導く。
+ */
+export async function resolveDispute(
+  pool: Pool,
+  input: { orderId: string; resolution: "refunded" | "resume" },
+): Promise<void> {
+  return withTransaction(pool, async (client) => {
+    let updated;
+    if (input.resolution === "refunded") {
+      updated = await client.query(
+        `UPDATE orders
+            SET status = 'refunded'
+          WHERE id = $1 AND status = 'disputed'
+        RETURNING buyer_id, seller_id`,
+        [input.orderId],
+      );
+    } else {
+      updated = await client.query(
+        `UPDATE orders
+            SET status = CASE
+              WHEN delivered_at IS NOT NULL THEN 'completed'
+              WHEN shipped_at IS NOT NULL THEN 'shipped'
+              ELSE 'paid'
+            END
+          WHERE id = $1 AND status = 'disputed'
+        RETURNING buyer_id, seller_id`,
+        [input.orderId],
+      );
+    }
+    if (updated.rowCount !== 1) {
+      throw new OrderRepositoryError(
+        "DISPUTE_STATE_CONFLICT",
+        "この注文は調査中ではありません。",
+      );
+    }
+    for (const userId of [
+      String(updated.rows[0].buyer_id),
+      String(updated.rows[0].seller_id),
+    ]) {
+      await insertNotification(client, {
+        userId,
+        type: "dispute_resolved",
+        title: "調査が完了しました",
+        body:
+          input.resolution === "refunded"
+            ? "本取引は返金対応となりました。"
+            : "調査の結果、取引を再開しました。",
+        orderId: input.orderId,
       });
     }
   });
