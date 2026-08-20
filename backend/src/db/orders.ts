@@ -422,6 +422,17 @@ export async function confirmDelivery(
         WHERE order_id = $1`,
       [input.orderId],
     );
+    // カードの所有権を購入者へ移転する(database-schema.md §4.2:
+    // 売買完了時はcardを作り直さずcurrent_owner_idを更新する)
+    await client.query(
+      `UPDATE cards
+          SET current_owner_id = $2
+        WHERE id = (SELECT l.card_id
+                      FROM listings l
+                      JOIN orders o ON o.listing_id = l.id
+                     WHERE o.id = $1)`,
+      [input.orderId, input.buyerId],
+    );
     await client.query(
       `UPDATE order_shipping_addresses
           SET retention_until = CURRENT_TIMESTAMP + make_interval(days => $2)

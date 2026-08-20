@@ -403,14 +403,22 @@ try {
   console.log("  OK: 受領確認(shipped→completed)");
 
   const finalState = await pool.query(
-    `SELECT o.status AS order_status, s.delivered_at, a.retention_until
+    `SELECT o.status AS order_status, s.delivered_at, a.retention_until,
+            c.current_owner_id
        FROM orders o
        JOIN shipments s ON s.order_id = o.id
        JOIN order_shipping_addresses a ON a.order_id = o.id
+       JOIN listings l ON l.id = o.listing_id
+       JOIN cards c ON c.id = l.card_id
       WHERE o.id = $1`,
     [orderId],
   );
   assert.equal(finalState.rows[0].order_status, "completed");
+  assert.equal(
+    finalState.rows[0].current_owner_id,
+    session.userId,
+    "取引完了時にカード所有権が購入者へ移転されること",
+  );
   assert.ok(finalState.rows[0].delivered_at, "shipments.delivered_atが設定されること");
   assert.ok(
     finalState.rows[0].retention_until,
