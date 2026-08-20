@@ -354,3 +354,15 @@ E2Eは次を実際に検証する。
 - EIP-1271を採用するか、非対応をUIで明示する。
 - 返金・二重入金・誤送金・chain reorganization・token停止時の運用runbookを作る。
 - 法務・会計・税務・利用規約・表示内容のreviewを完了する。
+
+---
+
+## 14. 追記(2026-08-21): Account Abstraction対応
+
+ユーザー指示により、ソーシャルログイン利用者向けのgasless決済を追加した(参考: Node-Stay)。
+
+- 構成: Web3Authのowner EOA → **ZeroDev Kernel account v3.1(EntryPoint 0.7)** + ZeroDev Bundler / Paymaster(v3 RPC 1本)。Paymasterがgasを負担するため、購入者はPOL残高なしでJPYC送金できる。
+- 認証: smart accountアドレスでSIWEを行う。署名は未デプロイ時ERC-6492/デプロイ後ERC-1271となり、backendは`publicClient.verifyMessage`でEOA署名と統一的に検証する(§5.1「EOA署名だけをMVP対象とする」を更新)。
+- 決済検証: AA取引はbundler経由でEntryPointへ届くため、`transaction.from`・calldataの直接照合ができない。workerは**JPYC contract自身が発行するTransfer eventの完全一致(from=payer / to=payee / value=金額)**で検証する(§6.2の更新)。EOA直接送金は従来通り全項目を照合する。
+- 外部wallet(MetaMask等)は従来のEOA直接送金のまま。経路はログイン時のconnector種別で自動判定する。
+- 環境変数: `NEXT_PUBLIC_ZERODEV_PROJECT_ID`(frontend、ビルド時焼き込み)。
