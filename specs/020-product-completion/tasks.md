@@ -80,4 +80,4 @@
 - [x] T110 トークン拡張(§7.1)+framer-motion導入
 - [x] T111 LP・商品カード・詳細・完了画面の刷新(§7.2-7.3)
 - [x] T112 全画面の統一パス+build/lint green(backend 154テスト緑)
-- [ ] T113 再デプロイ(frontend/backend)
+- [x] T113 再デプロイ(frontend/backend/worker×2/migration 0005-0006適用済み、2026-08-21)
