@@ -6,9 +6,9 @@
 
 ## Phase 1: 設計ドキュメント
 
-- [ ] T001 docs/design/screen-design.md — 全画面設計(サイトマップ、各画面のレイアウト・状態・遷移、共通コンポーネント、デザイントークン、文言方針)
-- [ ] T002 docs/design/shipping-flow.md — 発送・完了フロー設計(状態機械、shipments/order_shipping_addresses、PII境界、API契約)
-- [ ] T003 docs/design/database-schema.md へ 0004 の追記、api-catalog.md へ listings/orders/shipments 実装状態の反映、CLAUDE.md / README.md の古い記述修正
+- [x] T001 docs/design/screen-design.md — 全画面設計(サイトマップ、各画面のレイアウト・状態・遷移、共通コンポーネント、デザイントークン、文言方針)
+- [x] T002 docs/design/shipping-flow.md — 発送・完了フロー設計(状態機械、shipments/order_shipping_addresses、PII境界、API契約)
+- [x] T003 docs/design/database-schema.md へ 0004 の追記、api-catalog.md へ listings/orders/shipments 実装状態の反映、CLAUDE.md / README.md の古い記述修正
 
 ## Phase 2: フロントエンド基盤(Block A-前半)
 
