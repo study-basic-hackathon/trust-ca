@@ -20,6 +20,7 @@ import { createCardsRoute } from "./routes/cards.js";
 import { createKycRoute } from "./routes/kyc.js";
 import { createListingsRoute } from "./routes/listings.js";
 import { createMeRoute } from "./routes/me.js";
+import { createNotificationsRoute } from "./routes/notifications.js";
 import { createOnchainAnchorRoute } from "./routes/onchain-anchors.js";
 import { createOrdersRoute } from "./routes/orders.js";
 import { createPaymentRoute } from "./routes/payments.js";
@@ -74,6 +75,10 @@ app.route("/", createSellerRoute({ pool, walletConfig: paymentConfig }));
 app.route(
   "/",
   createMeRoute({ pool, walletConfig: paymentConfig, diditConfig }),
+);
+app.route(
+  "/",
+  createNotificationsRoute({ pool, walletConfig: paymentConfig }),
 );
 app.route(
   "/",

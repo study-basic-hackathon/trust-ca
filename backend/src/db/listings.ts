@@ -105,6 +105,8 @@ export async function createListing(
     title: string;
     description: string | null;
     priceMinor: bigint;
+    /** 要確認出品はdraftのまま保留し運営者が公開する(screen-design.md §6.5) */
+    requiresReview: boolean;
   },
 ): Promise<ListingRecord> {
   const id = randomUUID();
@@ -113,7 +115,8 @@ export async function createListing(
       `INSERT INTO listings
          (id, card_id, seller_id, title, description, price_minor, currency,
           status, published_at)
-       VALUES ($1, $2, $3, $4, $5, $6, 'JPY', 'active', CURRENT_TIMESTAMP)
+       VALUES ($1, $2, $3, $4, $5, $6, 'JPY', $7,
+               CASE WHEN $7 = 'active' THEN CURRENT_TIMESTAMP ELSE NULL END)
        RETURNING id, card_id, seller_id, title, description, price_minor,
                  currency, status, published_at, closed_at, created_at`,
       [
@@ -123,6 +126,7 @@ export async function createListing(
         input.title,
         input.description,
         input.priceMinor.toString(),
+        input.requiresReview ? "draft" : "active",
       ],
     );
     return toListing(result.rows[0]);
@@ -152,6 +156,8 @@ export async function getListingDetailById(
  * 公開中出品の一覧。published_at DESC, id のカーソル方式。
  * カーソルは「publishedAtエポックms:id」の不透明文字列として扱う。
  */
+export type ListingSort = "new" | "price_asc" | "price_desc";
+
 export async function listActiveListings(
   pool: Pool,
   options: {
@@ -159,11 +165,15 @@ export async function listActiveListings(
     cursor: { publishedAt: Date; id: string } | null;
     search: string | null;
     psaOnly: boolean;
+    minPriceMinor: bigint | null;
+    maxPriceMinor: bigint | null;
+    sort: ListingSort;
   },
 ): Promise<ListingDetail[]> {
   const conditions: string[] = [`l.status = 'active'`];
   const params: unknown[] = [];
-  if (options.cursor) {
+  // カーソルは新着順のみ対応。価格順はoffsetなしの単発取得とする
+  if (options.cursor && options.sort === "new") {
     params.push(options.cursor.publishedAt, options.cursor.id);
     conditions.push(
       `(l.published_at, l.id) < ($${params.length - 1}, $${params.length})`,
@@ -178,15 +188,72 @@ export async function listActiveListings(
   if (options.psaOnly) {
     conditions.push(`c.psa_cert_number IS NOT NULL`);
   }
+  if (options.minPriceMinor !== null) {
+    params.push(options.minPriceMinor.toString());
+    conditions.push(`l.price_minor >= $${params.length}`);
+  }
+  if (options.maxPriceMinor !== null) {
+    params.push(options.maxPriceMinor.toString());
+    conditions.push(`l.price_minor <= $${params.length}`);
+  }
+  const orderBy =
+    options.sort === "price_asc"
+      ? "l.price_minor ASC, l.id DESC"
+      : options.sort === "price_desc"
+        ? "l.price_minor DESC, l.id DESC"
+        : "l.published_at DESC, l.id DESC";
   params.push(options.limit);
   const result = await pool.query(
     `${SELECT_LISTING_DETAIL}
       WHERE ${conditions.join(" AND ")}
-      ORDER BY l.published_at DESC, l.id DESC
+      ORDER BY ${orderBy}
       LIMIT $${params.length}`,
     params,
   );
   return result.rows.map(toListingDetail);
+}
+
+/** 運営者による公開(draft→active)。screen-design.md §6.5 */
+export async function publishListing(
+  pool: Pool,
+  listingId: string,
+): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE listings
+        SET status = 'active', published_at = CURRENT_TIMESTAMP
+      WHERE id = $1 AND status = 'draft'`,
+    [listingId],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+/** 販売者の取引完了実績数(Risk判定用)。 */
+export async function countCompletedSalesBySeller(
+  pool: Pool,
+  sellerId: string,
+): Promise<number> {
+  const result = await pool.query(
+    `SELECT count(*)::int AS completed
+       FROM orders
+      WHERE seller_id = $1 AND status = 'completed'`,
+    [sellerId],
+  );
+  return Number(result.rows[0]?.completed ?? 0);
+}
+
+/** 直近24時間の出品数(Risk判定用)。 */
+export async function countRecentListingsBySeller(
+  pool: Pool,
+  sellerId: string,
+): Promise<number> {
+  const result = await pool.query(
+    `SELECT count(*)::int AS recent
+       FROM listings
+      WHERE seller_id = $1
+        AND created_at > CURRENT_TIMESTAMP - interval '24 hours'`,
+    [sellerId],
+  );
+  return Number(result.rows[0]?.recent ?? 0);
 }
 
 export async function listListingsBySeller(

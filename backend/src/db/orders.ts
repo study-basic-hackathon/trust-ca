@@ -40,6 +40,8 @@ export type OrderView = {
   createdAt: Date;
   listingTitle: string;
   cardName: string;
+  disputeReasonCode: string | null;
+  disputeDescription: string | null;
   buyerDisplayName: string;
   sellerDisplayName: string;
   shipment: {
@@ -102,6 +104,12 @@ function toOrderView(row: Record<string, unknown>): OrderView {
     createdAt: new Date(String(row.created_at)),
     listingTitle: String(row.listing_title),
     cardName: String(row.card_name),
+    disputeReasonCode: row.dispute_reason_code
+      ? String(row.dispute_reason_code)
+      : null,
+    disputeDescription: row.dispute_description
+      ? String(row.dispute_description)
+      : null,
     buyerDisplayName: String(row.buyer_display_name),
     sellerDisplayName: String(row.seller_display_name),
     shipment: row.shipment_tracking_number
@@ -122,6 +130,7 @@ const SELECT_ORDER_VIEW = `
   SELECT o.id, o.listing_id, o.buyer_id, o.seller_id, o.price_minor,
          o.currency, o.status, o.paid_at, o.shipped_at, o.delivered_at,
          o.completed_at, o.created_at,
+         o.dispute_reason_code, o.dispute_description,
          l.title AS listing_title,
          c.name AS card_name,
          bu.display_name AS buyer_display_name,

@@ -108,14 +108,26 @@ export function createListingsRoute(dependencies: Dependencies): Hono {
         description: body.description,
       });
       const priceMinor = parsePriceMinor(body.priceMinor);
-      const { listing } = await createListingForSeller(dependencies.pool, {
-        sellerId: session.userId,
-        cardId: body.cardId,
-        title: text.title,
-        description: text.description,
-        priceMinor,
-      });
-      return c.json({ data: listing }, 201);
+      const { listing, risk } = await createListingForSeller(
+        dependencies.pool,
+        {
+          sellerId: session.userId,
+          cardId: body.cardId,
+          title: text.title,
+          description: text.description,
+          priceMinor,
+        },
+      );
+      return c.json(
+        {
+          data: {
+            ...listing,
+            reviewRequired: risk.requiresReview,
+            reviewReasons: risk.reasons,
+          },
+        },
+        201,
+      );
     } catch (error) {
       if (error instanceof ListingRuleViolationError) {
         const status =
@@ -147,12 +159,20 @@ export function createListingsRoute(dependencies: Dependencies): Hono {
     const search = c.req.query("search")?.trim() || null;
     const psaOnly = c.req.query("psaOnly") === "1";
     const cursor = decodeCursor(c.req.query("cursor"));
+    const parsePrice = (raw: string | undefined): bigint | null =>
+      raw && /^[0-9]+$/.test(raw) ? BigInt(raw) : null;
+    const rawSort = c.req.query("sort");
+    const sort =
+      rawSort === "price_asc" || rawSort === "price_desc" ? rawSort : "new";
 
     const listings = await listActiveListings(dependencies.pool, {
       limit: limit + 1,
       cursor,
       search,
       psaOnly,
+      minPriceMinor: parsePrice(c.req.query("minPrice")),
+      maxPriceMinor: parsePrice(c.req.query("maxPrice")),
+      sort,
     });
     const page = listings.slice(0, limit);
     const nextCursor =

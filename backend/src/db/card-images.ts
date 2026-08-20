@@ -90,14 +90,16 @@ export async function insertCardImage(
     contentType: string;
     byteSize: number;
     sha256: string;
+    captureNonce?: string | null;
   },
 ): Promise<CardImageRecord> {
   try {
     const result = await pool.query(
       `INSERT INTO card_images (
          id, card_id, uploaded_by_user_id, image_kind,
-         storage_bucket, storage_object, content_type, byte_size, sha256
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         storage_bucket, storage_object, content_type, byte_size, sha256,
+         capture_nonce
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         randomUUID(),
@@ -109,6 +111,7 @@ export async function insertCardImage(
         input.contentType,
         input.byteSize,
         input.sha256,
+        input.captureNonce ?? null,
       ],
     );
     return toRecord(result.rows[0]);

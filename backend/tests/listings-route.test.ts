@@ -111,6 +111,7 @@ describe("POST /api/v1/listings", () => {
     listingsService.createListingForSeller.mockResolvedValue({
       listing: { id: listingDetail.id },
       card: {},
+      risk: { requiresReview: false, reasons: [] },
     });
     const res = await createApp().request("/api/v1/listings", {
       method: "POST",

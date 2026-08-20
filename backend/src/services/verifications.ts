@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Pool } from "pg";
+import { insertNotification } from "../db/notifications.js";
 import {
   applyProviderDecision,
   createSession,
@@ -220,7 +221,21 @@ export async function decideAsOperator(
     actorUserId: string | null;
   },
 ): Promise<Verification> {
-  return recordOperatorDecision(pool, input);
+  const verification = await recordOperatorDecision(pool, input);
+  // 通知は補助機能のため、失敗しても審査結果を巻き戻さない
+  await insertNotification(pool, {
+    userId: verification.sellerId,
+    type: "kyc_decided",
+    title:
+      input.decision === "approved"
+        ? "本人確認が承認されました"
+        : "本人確認が承認されませんでした",
+    body:
+      input.decision === "approved"
+        ? "出品が可能になりました。"
+        : "再度お手続きいただくか、運営までお問い合わせください。",
+  }).catch(() => undefined);
+  return verification;
 }
 
 export { DiditApiError };
