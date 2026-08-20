@@ -1,5 +1,7 @@
 "use client";
 
+import { motion } from "framer-motion";
+
 import { CircleCheck, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { AddressText } from "@/components/address-text";
@@ -26,13 +28,24 @@ const EVENT_LABELS: Record<string, string> = {
 export function CompletionPanel({ order }: { order: OrderDetail }) {
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-success/40 bg-success/5 p-8 text-center">
-        <CircleCheck className="mx-auto size-12 text-success" aria-hidden />
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25, ease: "easeOut" }}
+        className="rounded-lg border border-success/40 bg-success/5 p-8 text-center"
+      >
+        <motion.div
+          initial={{ scale: 0.4, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 260, damping: 18, delay: 0.1 }}
+        >
+          <CircleCheck className="mx-auto size-12 text-success" aria-hidden />
+        </motion.div>
         <h2 className="mt-4 text-xl font-bold">取引が完了しました</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           お取引ありがとうございました。この取引の記録は改竄を検知できる形で保存されています。
         </p>
-      </div>
+      </motion.div>
 
       <Card>
         <CardHeader>
@@ -65,10 +78,10 @@ export function CompletionPanel({ order }: { order: OrderDetail }) {
       </Card>
 
       {order.auditAnchors.length > 0 && (
-        <Card>
+        <Card className="border-gold/40">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <ShieldCheck className="size-5 text-primary" aria-hidden />
+              <ShieldCheck className="size-5 text-gold" aria-hidden />
               監査記録
             </CardTitle>
             <CardDescription>

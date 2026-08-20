@@ -149,3 +149,36 @@ export async function listCardImagesByCard(
   );
   return result.rows.map(toRecord);
 }
+
+
+export type PrimaryCardImage = {
+  cardId: string;
+  storageBucket: string;
+  storageObject: string;
+};
+
+/**
+ * 一覧表示用: カードごとの代表画像(front優先)を1件ずつ取得する。
+ * N+1を避けるためDISTINCT ONでまとめて引く。
+ */
+export async function listPrimaryImagesByCards(
+  pool: Pool,
+  cardIds: string[],
+): Promise<PrimaryCardImage[]> {
+  if (cardIds.length === 0) return [];
+  const result = await pool.query(
+    `SELECT DISTINCT ON (card_id)
+            card_id, storage_bucket, storage_object
+       FROM card_images
+      WHERE card_id = ANY($1::uuid[])
+      ORDER BY card_id,
+               (image_kind = 'front') DESC,
+               created_at ASC`,
+    [cardIds],
+  );
+  return result.rows.map((row) => ({
+    cardId: String(row.card_id),
+    storageBucket: String(row.storage_bucket),
+    storageObject: String(row.storage_object),
+  }));
+}

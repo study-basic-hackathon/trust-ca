@@ -27,16 +27,30 @@ import {
   type ListingSummary,
 } from "@/lib/api/listings";
 
-function ListingCard({ listing }: { listing: ListingSummary }) {
+type ListingWithThumbnail = ListingSummary & {
+  thumbnailUrl?: string | null;
+};
+
+function ListingCard({ listing }: { listing: ListingWithThumbnail }) {
   return (
     <Link href={`/listings/${listing.id}`} className="group">
-      <Card className="h-full transition-shadow group-hover:shadow-md">
+      <Card className="h-full overflow-hidden transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-md">
         <CardContent className="space-y-3 pt-6">
-          <div className="flex aspect-[4/3] items-center justify-center rounded-md bg-secondary">
-            <PackageSearch
-              className="size-10 text-muted-foreground/40"
-              aria-hidden
-            />
+          <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md bg-gradient-to-br from-accent to-secondary">
+            {listing.thumbnailUrl ? (
+              // 署名付き一時URLのためnext/imageの最適化対象にしない
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={listing.thumbnailUrl}
+                alt={listing.title}
+                className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+            ) : (
+              <PackageSearch
+                className="size-10 text-muted-foreground/40"
+                aria-hidden
+              />
+            )}
           </div>
           <p className="line-clamp-2 font-semibold">{listing.title}</p>
           <div className="flex flex-wrap gap-1.5">

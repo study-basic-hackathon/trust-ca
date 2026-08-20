@@ -8,7 +8,10 @@ import {
   listListingsBySeller,
   type ListingDetail,
 } from "../db/listings.js";
-import { listCardImagesByCard } from "../db/card-images.js";
+import {
+  listCardImagesByCard,
+  listPrimaryImagesByCards,
+} from "../db/card-images.js";
 import type { PaymentConfig, VisionConfig } from "../env.js";
 import {
   resolveWalletSession,
@@ -178,9 +181,32 @@ export function createListingsRoute(dependencies: Dependencies): Hono {
     const nextCursor =
       listings.length > limit ? encodeCursor(page[page.length - 1]) : null;
 
+    // 代表画像(front優先)を短時間有効の閲覧URLとして添付する
+    const primaryImages = await listPrimaryImagesByCards(
+      dependencies.pool,
+      page.map((listing) => listing.cardId),
+    );
+    const thumbnailUrls = new Map<string, string | null>(
+      await Promise.all(
+        primaryImages.map(
+          async (image): Promise<[string, string | null]> => [
+            image.cardId,
+            await issueDownloadUrl({
+              bucket: image.storageBucket,
+              objectKey: image.storageObject,
+              ttlSeconds: IMAGE_URL_TTL_SECONDS,
+            }).catch(() => null),
+          ],
+        ),
+      ),
+    );
+
     return c.json({
       data: {
-        items: page.map(toListingResponse),
+        items: page.map((listing) => ({
+          ...toListingResponse(listing),
+          thumbnailUrl: thumbnailUrls.get(listing.cardId) ?? null,
+        })),
         nextCursor,
       },
     });

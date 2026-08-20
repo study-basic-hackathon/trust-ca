@@ -14,6 +14,7 @@ const listingsService = vi.hoisted(() => ({
 
 const cardImagesDb = vi.hoisted(() => ({
   listCardImagesByCard: vi.fn(),
+  listPrimaryImagesByCards: vi.fn().mockResolvedValue([]),
 }));
 
 const storageService = vi.hoisted(() => ({
