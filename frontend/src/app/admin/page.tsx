@@ -4,6 +4,7 @@ import {
   ListOrdered,
   PackageOpen,
   ScanSearch,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -40,7 +41,13 @@ const SECTIONS = [
     href: "/admin/orders",
     icon: ListOrdered,
     title: "取引一覧",
-    description: "全取引の進行状況(支払い・発送・完了・紛争)を確認します。",
+    description: "全取引の進行状況の確認と、紛争の処理(返金/再開)を行います。",
+  },
+  {
+    href: "/admin/sellers",
+    icon: Users,
+    title: "販売者管理",
+    description: "取引実績に応じて出品上限(件数・金額)を調整します。",
   },
 ] as const;
 

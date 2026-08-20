@@ -45,7 +45,7 @@ type AdminListing = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  draft: "下書き",
+  draft: "審査待ち",
   active: "公開中",
   reserved: "取引中",
   sold: "売却済み",
@@ -68,6 +68,24 @@ export default function AdminListingsPage() {
       ),
     enabled: token.length > 0,
     retry: false,
+  });
+
+  const publishMutation = useMutation({
+    mutationFn: (listingId: string) =>
+      api(
+        `/api/v1/admin/listings/${encodeURIComponent(listingId)}/publish`,
+        { method: "POST" },
+        token,
+      ),
+    onSuccess: () => {
+      toast.success("出品を公開しました");
+      void queryClient.invalidateQueries({ queryKey: ["admin-listings"] });
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof ApiError ? error.message : "公開に失敗しました",
+      );
+    },
   });
 
   const closeMutation = useMutation({
@@ -163,14 +181,23 @@ export default function AdminListingsPage() {
                     {STATUS_LABELS[listing.status] ?? listing.status}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell className="space-x-2 text-right">
+                  {listing.status === "draft" && (
+                    <Button
+                      size="sm"
+                      onClick={() => publishMutation.mutate(listing.id)}
+                      disabled={publishMutation.isPending}
+                    >
+                      公開する
+                    </Button>
+                  )}
                   {["draft", "active"].includes(listing.status) && (
                     <Button
                       variant="destructive"
                       size="sm"
                       onClick={() => setClosingListingId(listing.id)}
                     >
-                      強制停止
+                      {listing.status === "draft" ? "却下する" : "強制停止"}
                     </Button>
                   )}
                 </TableCell>

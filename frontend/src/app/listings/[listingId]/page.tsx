@@ -15,6 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchListingDetail } from "@/lib/api/listings";
@@ -33,6 +34,7 @@ const IMAGE_KIND_LABELS: Record<string, string> = {
 export default function ListingDetailPage() {
   const params = useParams<{ listingId: string }>();
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [isZoomOpen, setIsZoomOpen] = useState(false);
 
   const listingQuery = useQuery({
     queryKey: ["listing", params.listingId],
@@ -86,7 +88,8 @@ export default function ListingDetailPage() {
               <img
                 src={selectedImage.url}
                 alt={`${listing.title}(${IMAGE_KIND_LABELS[selectedImage.imageKind] ?? selectedImage.imageKind})`}
-                className="size-full object-contain"
+                className="size-full cursor-zoom-in object-contain"
+                onClick={() => setIsZoomOpen(true)}
               />
             ) : (
               <div className="flex flex-col items-center gap-2 text-muted-foreground">
@@ -217,6 +220,38 @@ export default function ListingDetailPage() {
           )}
         </div>
       </div>
+      {/* 画像拡大Dialog(screen-design.md §6.9) */}
+      <Dialog open={isZoomOpen} onOpenChange={setIsZoomOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogTitle className="sr-only">{listing.title}の画像</DialogTitle>
+          {selectedImage?.url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={selectedImage.url}
+              alt={listing.title}
+              className="max-h-[80vh] w-full object-contain"
+            />
+          )}
+          {images.length > 1 && (
+            <div className="flex justify-center gap-2">
+              {images.map((image, index) => (
+                <button
+                  key={image.id}
+                  type="button"
+                  onClick={() => setSelectedImageIndex(index)}
+                  className={`rounded-md border px-3 py-1.5 text-xs ${
+                    index === selectedImageIndex
+                      ? "border-primary bg-accent text-primary"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {IMAGE_KIND_LABELS[image.imageKind] ?? image.imageKind}
+                </button>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

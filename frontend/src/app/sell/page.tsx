@@ -32,13 +32,14 @@ import {
   attachPsaVerification,
   createCard,
   createListing,
+  issuePossessionChallenge,
   verifyPsaCert,
   type CardDetail,
   type PsaVerificationResult,
 } from "@/lib/api/listings";
 import { getMe } from "@/lib/api/me";
 
-type WizardStep = 1 | 2 | 3 | 4;
+type WizardStep = 1 | 2 | 3 | 4 | 5;
 
 const IMAGE_SLOTS: { kind: CardImageKind; label: string; required: boolean }[] =
   [
@@ -52,6 +53,7 @@ function wizardSteps(current: WizardStep): Step[] {
   const defs = [
     { key: "info", label: "カード情報" },
     { key: "images", label: "画像" },
+    { key: "possession", label: "所持確認" },
     { key: "verify", label: "検証" },
     { key: "confirm", label: "確認" },
   ];
@@ -88,7 +90,15 @@ export default function SellPage() {
     null,
   );
 
-  // Step3
+  // Step3(所持確認)
+  const [possessionCode, setPossessionCode] = useState<{
+    code: string;
+    expiresAt: string;
+  } | null>(null);
+  const [isPossessionUploaded, setIsPossessionUploaded] = useState(false);
+  const [isUploadingPossession, setIsUploadingPossession] = useState(false);
+
+  // Step4(検証)
   const [psaResult, setPsaResult] = useState<PsaVerificationResult | null>(
     null,
   );
@@ -195,6 +205,46 @@ export default function SellPage() {
     }
   }
 
+  async function requestPossessionCode() {
+    if (!card) return;
+    try {
+      const challenge = await issuePossessionChallenge(session!.token, card.id);
+      setPossessionCode(challenge);
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError
+          ? error.message
+          : "確認コードを発行できませんでした",
+      );
+    }
+  }
+
+  async function handlePossessionUpload(file: File) {
+    if (!card || !possessionCode) return;
+    setIsUploadingPossession(true);
+    try {
+      await uploadCardImage({
+        backendUrl,
+        token: session!.token,
+        cardId: card.id,
+        imageKind: "possession",
+        uploadContext: "listing",
+        file,
+        captureNonce: possessionCode.code,
+      });
+      setIsPossessionUploaded(true);
+      toast.success("所持確認の画像を受け付けました");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "アップロードに失敗しました",
+      );
+      // コードが期限切れ・使用済みの場合は再発行を促す
+      setPossessionCode(null);
+    } finally {
+      setIsUploadingPossession(false);
+    }
+  }
+
   async function runPsaVerification() {
     if (!card) return;
     setIsVerifying(true);
@@ -234,8 +284,16 @@ export default function SellPage() {
         description: description.trim() || null,
         priceMinor: price.trim(),
       });
-      toast.success("出品を公開しました");
-      router.push(`/listings/${listing.id}`);
+      if (listing.reviewRequired) {
+        toast.info(
+          "出品を受け付けました。運営の確認後に公開されます",
+          { duration: 8000 },
+        );
+        router.push("/mypage/listings");
+      } else {
+        toast.success("出品を公開しました");
+        router.push(`/listings/${listing.id}`);
+      }
     } catch (error) {
       toast.error(
         error instanceof ApiError ? error.message : "出品に失敗しました",
@@ -441,7 +499,7 @@ export default function SellPage() {
                 onClick={() => setStep(3)}
                 disabled={!requiredImagesUploaded}
               >
-                次へ(検証)
+                次へ(所持確認)
               </Button>
             </div>
           </CardContent>
@@ -449,6 +507,73 @@ export default function SellPage() {
       )}
 
       {step === 3 && card && (
+        <Card>
+          <CardHeader>
+            <CardTitle>所持確認</CardTitle>
+            <CardDescription>
+              確認コードを紙に書き、カードと同じ写真に収めて撮影してください。盗用画像による出品を防ぐための手順です。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!possessionCode ? (
+              <Button onClick={() => void requestPossessionCode()}>
+                確認コードを発行する
+              </Button>
+            ) : (
+              <>
+                <div className="rounded-lg border-2 border-primary/40 bg-accent p-6 text-center">
+                  <p className="text-sm text-muted-foreground">確認コード</p>
+                  <p className="font-mono text-3xl font-bold tracking-widest">
+                    {possessionCode.code}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    有効期限:{" "}
+                    {new Date(possessionCode.expiresAt).toLocaleTimeString(
+                      "ja-JP",
+                    )}
+                  </p>
+                </div>
+                {isPossessionUploaded ? (
+                  <p className="flex items-center gap-2 text-sm text-success">
+                    <CheckCircle2 className="size-4" aria-hidden />
+                    所持確認の画像を受け付けました
+                  </p>
+                ) : (
+                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed py-8 text-sm text-muted-foreground hover:bg-accent">
+                    {isUploadingPossession ? (
+                      <Loader2 className="size-4 animate-spin" aria-hidden />
+                    ) : (
+                      <ImagePlus className="size-4" aria-hidden />
+                    )}
+                    コードとカードを一緒に撮影した画像を選択
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      disabled={isUploadingPossession}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void handlePossessionUpload(file);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                )}
+              </>
+            )}
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setStep(2)}>
+                戻る
+              </Button>
+              <Button onClick={() => setStep(4)} disabled={!isPossessionUploaded}>
+                次へ(検証)
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 4 && card && (
         <Card>
           <CardHeader>
             <CardTitle>カード検証</CardTitle>
@@ -508,11 +633,11 @@ export default function SellPage() {
               </Alert>
             )}
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setStep(2)}>
+              <Button variant="outline" onClick={() => setStep(3)}>
                 戻る
               </Button>
               <Button
-                onClick={() => setStep(4)}
+                onClick={() => setStep(5)}
                 disabled={Boolean(card.psaCertNumber) && !psaResult}
               >
                 次へ(確認)
@@ -522,7 +647,7 @@ export default function SellPage() {
         </Card>
       )}
 
-      {step === 4 && card && (
+      {step === 5 && card && (
         <Card>
           <CardHeader>
             <CardTitle>出品内容の確認</CardTitle>
@@ -552,7 +677,7 @@ export default function SellPage() {
               出品手数料は現在無料です。公開後、購入が入ると取引がロックされます。
             </p>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setStep(3)}>
+              <Button variant="outline" onClick={() => setStep(4)}>
                 戻る
               </Button>
               <Button onClick={() => void submitListing()} disabled={isSubmitting}>

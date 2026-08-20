@@ -28,6 +28,7 @@ export type ShippingAddressInput = {
 export type OrderView = {
   id: string;
   listingId: string;
+  cardId: string;
   buyerId: string;
   sellerId: string;
   priceMinor: string;
@@ -92,6 +93,7 @@ function toOrderView(row: Record<string, unknown>): OrderView {
   return {
     id: String(row.id),
     listingId: String(row.listing_id),
+    cardId: String(row.card_id),
     buyerId: String(row.buyer_id),
     sellerId: String(row.seller_id),
     priceMinor: String(row.price_minor),
@@ -131,6 +133,7 @@ const SELECT_ORDER_VIEW = `
          o.currency, o.status, o.paid_at, o.shipped_at, o.delivered_at,
          o.completed_at, o.created_at,
          o.dispute_reason_code, o.dispute_description,
+         l.card_id,
          l.title AS listing_title,
          c.name AS card_name,
          bu.display_name AS buyer_display_name,

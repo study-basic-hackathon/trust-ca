@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AmountJpy } from "@/components/amount-jpy";
 import { fetchOrderDetail, type OrderDetail } from "@/lib/api/orders";
 import { CompletionPanel } from "./completion-panel";
+import { CancelOrderButton, DisputeLink } from "./dispute-panel";
 import { PaymentPanel } from "./payment-panel";
 import { ShipmentRegisterPanel, TrackingPanel } from "./shipment-panel";
 
@@ -87,13 +88,46 @@ function OrderPhasePanels({
     isBuyer &&
     ["pending_payment", "payment_submitted"].includes(order.status)
   ) {
-    return <PaymentPanel order={order} token={token} />;
+    return (
+      <div className="space-y-4">
+        <PaymentPanel order={order} token={token} />
+        {order.status === "pending_payment" && (
+          <div className="text-center">
+            <CancelOrderButton order={order} token={token} />
+          </div>
+        )}
+      </div>
+    );
   }
   if (!isBuyer && order.status === "paid") {
     return <ShipmentRegisterPanel order={order} token={token} />;
   }
   if (["shipped", "delivered"].includes(order.status)) {
-    return <TrackingPanel order={order} token={token} />;
+    return (
+      <div className="space-y-4">
+        <TrackingPanel order={order} token={token} />
+        {isBuyer && (
+          <div className="text-center">
+            <DisputeLink order={order} token={token} />
+          </div>
+        )}
+      </div>
+    );
+  }
+  if (isBuyer && order.status === "paid") {
+    return (
+      <div className="space-y-4">
+        <Alert>
+          <AlertTitle>販売者の発送をお待ちください</AlertTitle>
+          <AlertDescription>
+            発送されると追跡番号が表示されます。
+          </AlertDescription>
+        </Alert>
+        <div className="text-center">
+          <DisputeLink order={order} token={token} />
+        </div>
+      </div>
+    );
   }
   return (
     <Alert>

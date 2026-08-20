@@ -14,7 +14,18 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchListings, type ListingSummary } from "@/lib/api/listings";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  fetchListings,
+  type ListingSort,
+  type ListingSummary,
+} from "@/lib/api/listings";
 
 function ListingCard({ listing }: { listing: ListingSummary }) {
   return (
@@ -52,11 +63,24 @@ export default function ListingsPage() {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [psaOnly, setPsaOnly] = useState(false);
+  const [minPriceInput, setMinPriceInput] = useState("");
+  const [maxPriceInput, setMaxPriceInput] = useState("");
+  const [priceRange, setPriceRange] = useState<{ min?: string; max?: string }>(
+    {},
+  );
+  const [sort, setSort] = useState<ListingSort>("new");
 
   const listingsQuery = useInfiniteQuery({
-    queryKey: ["listings", search, psaOnly],
+    queryKey: ["listings", search, psaOnly, priceRange, sort],
     queryFn: ({ pageParam }) =>
-      fetchListings({ search, psaOnly, cursor: pageParam }),
+      fetchListings({
+        search,
+        psaOnly,
+        cursor: pageParam,
+        minPrice: priceRange.min,
+        maxPrice: priceRange.max,
+        sort,
+      }),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
   });
@@ -73,6 +97,14 @@ export default function ListingsPage() {
         onSubmit={(event) => {
           event.preventDefault();
           setSearch(searchInput.trim());
+          setPriceRange({
+            min: /^[0-9]+$/.test(minPriceInput.trim())
+              ? minPriceInput.trim()
+              : undefined,
+            max: /^[0-9]+$/.test(maxPriceInput.trim())
+              ? maxPriceInput.trim()
+              : undefined,
+          });
         }}
       >
         <div className="relative min-w-64 flex-1">
@@ -87,6 +119,38 @@ export default function ListingsPage() {
             className="pl-9"
           />
         </div>
+        <div className="flex items-center gap-1.5">
+          <Input
+            value={minPriceInput}
+            onChange={(event) => setMinPriceInput(event.target.value)}
+            placeholder="下限"
+            inputMode="numeric"
+            className="w-24"
+            aria-label="価格下限(JPYC)"
+          />
+          <span className="text-muted-foreground">〜</span>
+          <Input
+            value={maxPriceInput}
+            onChange={(event) => setMaxPriceInput(event.target.value)}
+            placeholder="上限"
+            inputMode="numeric"
+            className="w-24"
+            aria-label="価格上限(JPYC)"
+          />
+        </div>
+        <Select
+          value={sort}
+          onValueChange={(value) => setSort(value as ListingSort)}
+        >
+          <SelectTrigger className="w-36" aria-label="並び順">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="new">新着順</SelectItem>
+            <SelectItem value="price_asc">価格が安い順</SelectItem>
+            <SelectItem value="price_desc">価格が高い順</SelectItem>
+          </SelectContent>
+        </Select>
         <div className="flex items-center gap-2">
           <Checkbox
             id="psaOnly"

@@ -29,7 +29,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ApiError } from "@/lib/api";
+import { ApiError, backendUrl } from "@/lib/api";
+import {
+  runCardImageAnalysis,
+  uploadCardImage,
+  type CardImageAnalysisResult,
+} from "@/lib/api/card-images";
 import {
   CARRIER_LABELS,
   CARRIER_TRACKING_URLS,
@@ -167,6 +172,48 @@ export function TrackingPanel({
 }) {
   const queryClient = useQueryClient();
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [isUploadingArrival, setIsUploadingArrival] = useState(false);
+  const [arrivalAnalysis, setArrivalAnalysis] =
+    useState<CardImageAnalysisResult | null>(null);
+
+  async function handleArrivalUpload(file: File) {
+    setIsUploadingArrival(true);
+    try {
+      const uploaded = await uploadCardImage({
+        backendUrl,
+        token,
+        cardId: order.cardId,
+        imageKind: "front",
+        uploadContext: "arrival",
+        file,
+      });
+      const analysis = await runCardImageAnalysis({
+        backendUrl,
+        token,
+        cardId: order.cardId,
+        imageId: uploaded.id,
+      });
+      setArrivalAnalysis(analysis);
+      toast.success("到着した商品の画像を確認しました");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "画像の確認に失敗しました。受領確認はそのまま行えます",
+      );
+      // 解析失敗でも受領確認は妨げない(補助シグナルのため)
+      setArrivalAnalysis({
+        id: "",
+        cardId: order.cardId,
+        sourceImageId: "",
+        status: "failed",
+        score: null,
+        normalizedResult: null,
+      });
+    } finally {
+      setIsUploadingArrival(false);
+    }
+  }
 
   const deliveryMutation = useMutation({
     mutationFn: () => confirmDelivery(token, order.id),
@@ -232,7 +279,45 @@ export function TrackingPanel({
 
         {order.viewerRole === "buyer" && order.status === "shipped" && (
           <>
-            <Button className="w-full" onClick={() => setIsConfirmOpen(true)}>
+            {/* 到着後の再撮影(screen-design.md §6.2)。解析は補助シグナル */}
+            <div className="rounded-lg border p-4">
+              <p className="text-sm font-medium">
+                到着した商品を撮影してください
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                出品時の情報と照合し、取引記録として保存します。
+              </p>
+              {arrivalAnalysis ? (
+                <p className="mt-2 text-sm">
+                  {arrivalAnalysis.status === "completed" &&
+                  arrivalAnalysis.normalizedResult?.matchedName
+                    ? "✅ 出品時のカード情報と内容が一致しました"
+                    : arrivalAnalysis.status === "failed"
+                      ? "画像の自動確認はできませんでした(受領確認は可能です)"
+                      : "🔍 自動確認できなかったため、記録として保存しました"}
+                </p>
+              ) : (
+                <label className="mt-3 flex cursor-pointer items-center justify-center rounded-md border border-dashed py-4 text-sm text-muted-foreground hover:bg-accent">
+                  {isUploadingArrival ? "確認中…" : "商品の表面を撮影・選択"}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    disabled={isUploadingArrival}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void handleArrivalUpload(file);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              )}
+            </div>
+            <Button
+              className="w-full"
+              onClick={() => setIsConfirmOpen(true)}
+              disabled={!arrivalAnalysis}
+            >
               商品を受け取りました
             </Button>
             <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>

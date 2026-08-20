@@ -91,6 +91,7 @@ function toOrderResponse(order: OrderView) {
   return {
     id: order.id,
     listingId: order.listingId,
+    cardId: order.cardId,
     buyerId: order.buyerId,
     sellerId: order.sellerId,
     priceMinor: order.priceMinor,

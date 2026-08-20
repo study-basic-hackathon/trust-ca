@@ -65,15 +65,15 @@
 
 ## Phase 10: 機能ギャップ実装
 
-- [ ] T100 nonce所持証明(backend: nonce発行/検証API + 出品ウィザードStep2.5)
-- [ ] T101 到着後再撮影比較(購入者: arrival撮影→Vision解析→受領確認)
-- [ ] T102 注文キャンセル(支払い前、reserved解放)
-- [ ] T103 紛争フロー(購入者申告→disputed→admin処理(返金/却下)+監査イベント)
-- [ ] T104 Risk Engine最小ルール+出品の公開前審査(draft保留+admin公開/却下)
-- [ ] T105 通知欄(notificationsテーブル+ヘッダーベル+未読数)
-- [ ] T106 admin sellers(seller_limits編集+監査記録)
-- [ ] T107 一覧の価格帯・並び替え、詳細の画像拡大Dialog
-- [ ] T108 テスト補強(新規API群)
+- [x] T100 nonce所持証明(backend: nonce発行/検証API + 出品ウィザードStep2.5)
+- [x] T101 到着後再撮影比較(購入者: arrival撮影→Vision解析→受領確認)
+- [x] T102 注文キャンセル(支払い前、reserved解放)
+- [x] T103 紛争フロー(購入者申告→disputed→admin処理(返金/却下)+監査イベント)
+- [x] T104 Risk Engine最小ルール+出品の公開前審査(draft保留+admin公開/却下)
+- [x] T105 通知欄(notificationsテーブル+ヘッダーベル+未読数)
+- [x] T106 admin sellers(seller_limits編集+監査記録)
+- [x] T107 一覧の価格帯・並び替え、詳細の画像拡大Dialog
+- [x] T108 テスト補強(新規API群)
 
 ## Phase 11: 視覚デザイン刷新
 

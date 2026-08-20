@@ -21,6 +21,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { api, ApiError } from "@/lib/api";
 
 type AdminOrder = {
@@ -31,7 +34,16 @@ type AdminOrder = {
   buyerDisplayName: string;
   sellerDisplayName: string;
   trackingNumber: string | null;
+  disputeReasonCode: string | null;
+  disputeDescription: string | null;
   createdAt: string;
+};
+
+const DISPUTE_REASON_LABELS: Record<string, string> = {
+  not_delivered: "商品が届かない",
+  not_as_described: "商品が説明と異なる",
+  suspected_fake: "偽物の疑い",
+  other: "その他",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -47,8 +59,30 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function AdminOrdersPage() {
+  const queryClient = useQueryClient();
   const [token, setToken] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const resolveMutation = useMutation({
+    mutationFn: (input: { orderId: string; resolution: "refunded" | "resume" }) =>
+      api(
+        `/api/v1/admin/orders/${encodeURIComponent(input.orderId)}/dispute-resolution`,
+        {
+          method: "POST",
+          body: JSON.stringify({ resolution: input.resolution }),
+        },
+        token,
+      ),
+    onSuccess: () => {
+      toast.success("紛争処理を記録しました");
+      void queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof ApiError ? error.message : "処理に失敗しました",
+      );
+    },
+  });
 
   const ordersQuery = useQuery({
     queryKey: ["admin-orders", token, statusFilter],
@@ -115,6 +149,7 @@ export default function AdminOrdersPage() {
               <TableHead>追跡番号</TableHead>
               <TableHead>状態</TableHead>
               <TableHead>作成日</TableHead>
+              <TableHead className="text-right">紛争処理</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -148,6 +183,45 @@ export default function AdminOrdersPage() {
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {new Date(order.createdAt).toLocaleDateString("ja-JP")}
+                </TableCell>
+                <TableCell className="text-right">
+                  {order.status === "disputed" && (
+                    <div className="space-y-1 text-left">
+                      <p className="text-xs">
+                        {DISPUTE_REASON_LABELS[order.disputeReasonCode ?? ""] ??
+                          order.disputeReasonCode}
+                        : {order.disputeDescription}
+                      </p>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() =>
+                            resolveMutation.mutate({
+                              orderId: order.id,
+                              resolution: "refunded",
+                            })
+                          }
+                          disabled={resolveMutation.isPending}
+                        >
+                          返金対応
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            resolveMutation.mutate({
+                              orderId: order.id,
+                              resolution: "resume",
+                            })
+                          }
+                          disabled={resolveMutation.isPending}
+                        >
+                          取引再開
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

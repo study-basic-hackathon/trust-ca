@@ -101,7 +101,7 @@ export function createListing(
     description: string | null;
     priceMinor: string;
   },
-): Promise<{ id: string }> {
+): Promise<{ id: string; reviewRequired: boolean; reviewReasons: string[] }> {
   return api(
     "/api/v1/listings",
     { method: "POST", body: JSON.stringify(input) },
@@ -109,15 +109,34 @@ export function createListing(
   );
 }
 
+export function issuePossessionChallenge(
+  token: string,
+  cardId: string,
+): Promise<{ code: string; expiresAt: string }> {
+  return api(
+    `/api/v1/cards/${encodeURIComponent(cardId)}/possession-challenges`,
+    { method: "POST" },
+    token,
+  );
+}
+
+export type ListingSort = "new" | "price_asc" | "price_desc";
+
 export function fetchListings(params: {
   search?: string;
   psaOnly?: boolean;
   cursor?: string | null;
+  minPrice?: string;
+  maxPrice?: string;
+  sort?: ListingSort;
 }): Promise<{ items: ListingSummary[]; nextCursor: string | null }> {
   const query = new URLSearchParams();
   if (params.search) query.set("search", params.search);
   if (params.psaOnly) query.set("psaOnly", "1");
   if (params.cursor) query.set("cursor", params.cursor);
+  if (params.minPrice) query.set("minPrice", params.minPrice);
+  if (params.maxPrice) query.set("maxPrice", params.maxPrice);
+  if (params.sort && params.sort !== "new") query.set("sort", params.sort);
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
   return api(`/api/v1/listings${suffix}`);
 }
