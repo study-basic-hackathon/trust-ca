@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useWeb3Auth,
   useWeb3AuthConnect,
   useWeb3AuthDisconnect,
 } from "@web3auth/modal/react";
@@ -19,14 +20,26 @@ import {
   type EIP1193Provider,
 } from "viem";
 import { useConnection, useSignMessage } from "wagmi";
+import {
+  buildKernelContext,
+  clearActiveKernel,
+  getActiveKernel,
+  isAaEnabled,
+} from "@/lib/aa/kernel-client";
 import { api, ApiError } from "@/lib/api";
 import { useAuthStore, type AuthSession } from "@/lib/stores/auth-store";
 
 const expectedChainId = Number(process.env.NEXT_PUBLIC_PAYMENT_CHAIN_ID ?? 137);
 
+/** ソーシャルログイン(Web3Auth組込みwallet)のconnector名 */
+const SOCIAL_CONNECTOR_NAME = "auth";
+
+export type PaymentMode = "aa" | "eoa";
+
 type Signer = {
   address: Address;
   chainId: number;
+  mode: PaymentMode;
   signMessage: (message: string) => Promise<`0x${string}`>;
 };
 
@@ -36,6 +49,11 @@ type AuthContextValue = {
   isSignedIn: boolean;
   isBusy: boolean;
   walletAddress: Address | undefined;
+  /**
+   * 支払い経路。ソーシャルログイン+ZeroDev設定時は smart account(gasless)、
+   * 外部walletは従来のEOA直接送金。
+   */
+  paymentMode: PaymentMode;
   /** モーダル起動 → wallet接続 → SIWE署名 → session発行 までを一括実行 */
   login: () => Promise<void>;
   logout: () => Promise<void>;
@@ -45,47 +63,100 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const connection = useConnection();
-  const { connect, loading: connecting } = useWeb3AuthConnect();
+  const { web3Auth } = useWeb3Auth();
+  const {
+    connect,
+    connectorName,
+    loading: connecting,
+  } = useWeb3AuthConnect();
   const { disconnect } = useWeb3AuthDisconnect();
   const { signMessageAsync } = useSignMessage();
   const { status, session, setStatus, setSession, clear } = useAuthStore();
 
-  // wallet・chainがsessionと一致している場合のみ有効なsessionとして扱う
-  const activeSession =
-    session &&
+  // sessionの有効性: 接続中かつ、sessionのwalletが
+  // (a) 接続walletそのもの(EOA)、または (b) 接続wallet(owner)から導出した
+  // smart account、のいずれかに一致していること
+  const kernel = getActiveKernel();
+  const isSessionBackedByConnection =
+    session !== null &&
     connection.status === "connected" &&
-    connection.address?.toLowerCase() === session.walletAddress.toLowerCase() &&
-    connection.chainId === session.chainId
-      ? session
-      : null;
+    connection.chainId === session.chainId &&
+    (connection.address?.toLowerCase() === session.walletAddress.toLowerCase() ||
+      (kernel !== null &&
+        kernel.ownerAddress.toLowerCase() ===
+          connection.address?.toLowerCase() &&
+        kernel.aaAddress.toLowerCase() ===
+          session.walletAddress.toLowerCase()));
+  const activeSession = isSessionBackedByConnection ? session : null;
 
   const resolveSigner = useCallback(async (): Promise<Signer | null> => {
+    let provider: EIP1193Provider | null = null;
+    let resolvedConnectorName: string | null = connectorName;
+
     if (connection.status === "connected" && connection.address) {
-      // 接続済み: wagmi経由で署名する
+      provider = (web3Auth?.provider as EIP1193Provider | null) ?? null;
+    } else {
+      // 未接続: Web3Authモーダル(ソーシャル/外部walletの両入口)を開く
+      const connected = await connect();
+      if (!connected?.ethereumProvider) return null; // モーダルを閉じた
+      provider = connected.ethereumProvider as EIP1193Provider;
+      resolvedConnectorName = connected.connectorName;
+    }
+
+    // ソーシャルログイン + ZeroDev設定あり → smart account(gasless)経路
+    if (
+      provider &&
+      resolvedConnectorName === SOCIAL_CONNECTOR_NAME &&
+      isAaEnabled()
+    ) {
+      const kernelContext = await buildKernelContext(provider);
+      return {
+        address: kernelContext.aaAddress,
+        chainId: expectedChainId,
+        mode: "aa",
+        signMessage: kernelContext.signMessage,
+      };
+    }
+
+    // EOA経路(外部wallet、またはZeroDev未設定時のソーシャル)
+    if (connection.status === "connected" && connection.address) {
       return {
         address: connection.address as Address,
         chainId: connection.chainId ?? 0,
+        mode: "eoa",
         signMessage: (message) => signMessageAsync({ message }),
       };
     }
-    // 未接続: Web3Authモーダル(ソーシャル/外部walletの両入口)を開き、
-    // 返却されたproviderから直接アドレスを取得する(wagmi状態の反映を待たない)
-    const connected = await connect();
-    const provider = connected?.ethereumProvider as EIP1193Provider | null;
-    if (!provider) return null; // ユーザーがモーダルを閉じた
+    if (!provider) return null;
     const walletClient = createWalletClient({ transport: custom(provider) });
     const [address] = await walletClient.getAddresses();
     if (!address) return null;
     return {
       address,
       chainId: await walletClient.getChainId(),
+      mode: "eoa",
       signMessage: (message) =>
         walletClient.signMessage({ account: address, message }),
     };
-  }, [connect, connection.address, connection.chainId, connection.status, signMessageAsync]);
+  }, [
+    connect,
+    connection.address,
+    connection.chainId,
+    connection.status,
+    connectorName,
+    signMessageAsync,
+    web3Auth,
+  ]);
 
   const login = useCallback(async () => {
-    const signer = await resolveSigner();
+    let signer: Signer | null;
+    try {
+      signer = await resolveSigner();
+    } catch (error) {
+      console.error("signerの初期化に失敗しました", error);
+      toast.error("ウォレットの初期化に失敗しました。再度お試しください");
+      return;
+    }
     if (!signer) return;
     if (signer.chainId !== expectedChainId) {
       toast.error(
@@ -94,7 +165,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // SIWE: backend発行のchallengeへ署名し、検証結果のsessionだけを信用する
+    // SIWE: backend発行のchallengeへ署名し、検証結果のsessionだけを信用する。
+    // smart accountの署名はbackendがERC-1271/6492としてchain上で検証する
     setStatus("signing");
     try {
       const challenge = await api<{ challengeId: string; message: string }>(
@@ -120,7 +192,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       );
       setSession(verified);
-      toast.success("ログインしました");
+      toast.success(
+        signer.mode === "aa"
+          ? "ログインしました(ガス代不要のスマートアカウントを使用します)"
+          : "ログインしました",
+      );
     } catch (error) {
       setStatus("connected");
       if (error instanceof ApiError) {
@@ -135,22 +211,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await disconnect({ cleanup: true });
     } finally {
+      clearActiveKernel();
       clear();
       toast("ログアウトしました");
     }
   }, [clear, disconnect]);
 
-  const value = useMemo<AuthContextValue>(
-    () => ({
-      session: activeSession,
-      isSignedIn: Boolean(activeSession),
-      isBusy: connecting || status === "signing",
-      walletAddress: connection.address as Address | undefined,
-      login,
-      logout,
-    }),
-    [activeSession, connecting, connection.address, login, logout, status],
-  );
+  // kernelはReact外のモジュールキャッシュのためuseMemoの依存にできない。
+  // context値は毎renderで再構築する(認証状態の変化時のみ購読側が再描画される)
+  const value: AuthContextValue = {
+    session: activeSession,
+    isSignedIn: Boolean(activeSession),
+    isBusy: connecting || status === "signing",
+    walletAddress:
+      (activeSession?.walletAddress as Address | undefined) ??
+      (connection.address as Address | undefined),
+    paymentMode:
+      activeSession && kernel &&
+      kernel.aaAddress.toLowerCase() ===
+        activeSession.walletAddress.toLowerCase()
+        ? "aa"
+        : "eoa",
+    login,
+    logout,
+  };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
@@ -170,6 +254,7 @@ export function AuthUnconfiguredProvider({
       isSignedIn: false,
       isBusy: false,
       walletAddress: undefined,
+      paymentMode: "eoa",
       login: async () => {
         toast.error(
           "認証機能が設定されていません。NEXT_PUBLIC_WEB3AUTH_CLIENT_IDを設定してください",

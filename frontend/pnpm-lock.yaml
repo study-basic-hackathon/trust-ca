@@ -21,6 +21,12 @@ importers:
       '@web3auth/modal':
         specifier: ^11.4.0
         version: 11.4.0(@babel/runtime@7.29.7)(@sentry/core@10.70.0)(@solana/client@1.7.0(@solana/sysvars@4.0.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3))(@types/react@19.2.18)(fastestsmallesttextencoderdecoder@1.0.22)(react@19.2.4)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.2.4)))(@solana/kit@6.10.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3))(@solana/sysvars@4.0.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3))(@types/node@24.13.3)(@types/react@19.2.18)(fastestsmallesttextencoderdecoder@1.0.22)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(supports-color@7.2.0)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.2.4))(viem@2.55.13(typescript@5.9.3)(zod@4.4.3))(vite@8.2.1(@types/node@24.13.3)(jiti@2.7.0))(zod@4.4.3)
+      '@zerodev/ecdsa-validator':
+        specifier: ^5.4.9
+        version: 5.4.9(@zerodev/sdk@5.5.10(viem@2.55.13(typescript@5.9.3)(zod@4.4.3)))(viem@2.55.13(typescript@5.9.3)(zod@4.4.3))
+      '@zerodev/sdk':
+        specifier: ^5.5.10
+        version: 5.5.10(viem@2.55.13(typescript@5.9.3)(zod@4.4.3))
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -3118,6 +3124,17 @@ packages:
   '@xrplf/isomorphic@1.0.2':
     resolution: {integrity: sha512-ncZUdMXr6VlSXtdoiDi0jTH+gBrgGxwVeEidhoegII3PmyErbQsyj6e+j7acmR4LW/lvBkPkzb9QzRfJH0n3rA==}
     engines: {node: '>=18.0.0'}
+
+  '@zerodev/ecdsa-validator@5.4.9':
+    resolution: {integrity: sha512-9NVE8/sQIKRo42UOoYKkNdmmHJY8VlT4t+2MHD2ipLg21cpbY9fS17TGZh61+Bl3qlqc8pP23I6f89z9im7kuA==}
+    peerDependencies:
+      '@zerodev/sdk': ^5.4.13
+      viem: ^2.28.0
+
+  '@zerodev/sdk@5.5.10':
+    resolution: {integrity: sha512-WVyj2XR9F6zK2GdXrvappx7yo6zoJ46cWe42dOIArp3xDjFBninjA4O1O94MwohB0G+yFqtXNsEU+WxdE67SgQ==}
+    peerDependencies:
+      viem: ^2.28.0
 
   abitype@1.2.3:
     resolution: {integrity: sha512-Ofer5QUnuUdTFsBRwARMoWKOH1ND5ehwYhJ3OJ/BQO+StkwQjHw0XyVh4vDttzHB7QOFhPHa/o413PJ82gU/Tg==}
@@ -9209,6 +9226,16 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
+
+  '@zerodev/ecdsa-validator@5.4.9(@zerodev/sdk@5.5.10(viem@2.55.13(typescript@5.9.3)(zod@4.4.3)))(viem@2.55.13(typescript@5.9.3)(zod@4.4.3))':
+    dependencies:
+      '@zerodev/sdk': 5.5.10(viem@2.55.13(typescript@5.9.3)(zod@4.4.3))
+      viem: 2.55.13(typescript@5.9.3)(zod@4.4.3)
+
+  '@zerodev/sdk@5.5.10(viem@2.55.13(typescript@5.9.3)(zod@4.4.3))':
+    dependencies:
+      semver: 7.8.5
+      viem: 2.55.13(typescript@5.9.3)(zod@4.4.3)
 
   abitype@1.2.3(typescript@5.9.3)(zod@4.4.3):
     optionalDependencies:

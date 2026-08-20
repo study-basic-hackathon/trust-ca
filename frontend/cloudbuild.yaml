@@ -7,6 +7,7 @@ substitutions:
   _CHAIN_NAME: Polygon
   _RPC_URL: https://polygon-rpc.com
   _EXPLORER_URL: https://polygonscan.com
+  _ZERODEV_PROJECT_ID: ""
 
 steps:
   - name: gcr.io/cloud-builders/docker
@@ -26,6 +27,8 @@ steps:
       - NEXT_PUBLIC_PAYMENT_RPC_URL=${_RPC_URL}
       - --build-arg
       - NEXT_PUBLIC_PAYMENT_EXPLORER_URL=${_EXPLORER_URL}
+      - --build-arg
+      - NEXT_PUBLIC_ZERODEV_PROJECT_ID=${_ZERODEV_PROJECT_ID}
       - -t
       - asia-northeast1-docker.pkg.dev/trust-ca-506116/trustca/frontend:v1
       - .

@@ -1,6 +1,13 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { Pool } from "pg";
-import { getAddress, verifyMessage, type Hex } from "viem";
+import {
+  createPublicClient,
+  defineChain,
+  getAddress,
+  http,
+  type Hex,
+  type PublicClient,
+} from "viem";
 import {
   createSiweMessage,
   generateSiweNonce,
@@ -32,10 +39,34 @@ function sha256(value: string): string {
 }
 
 export class WalletAuthService {
+  /**
+   * 署名検証用のRPC client。EOAはオフライン検証で完結するが、
+   * smart account(ZeroDev Kernel等)のERC-1271 / ERC-6492署名は
+   * chain上のisValidSignature照会が必要なためpublic clientを使う。
+   * 機能無効時(rpcUrl未設定)にも構築できるよう遅延初期化する。
+   */
+  private publicClient: PublicClient | null = null;
+
   constructor(
     private readonly pool: Pool,
     private readonly config: PaymentConfig,
   ) {}
+
+  private getPublicClient(): PublicClient {
+    if (!this.publicClient) {
+      const chain = defineChain({
+        id: this.config.chainId,
+        name: this.config.chainName,
+        nativeCurrency: { name: "Native Token", symbol: "ETH", decimals: 18 },
+        rpcUrls: { default: { http: [this.config.rpcUrl] } },
+      });
+      this.publicClient = createPublicClient({
+        chain,
+        transport: http(this.config.rpcUrl),
+      });
+    }
+    return this.publicClient;
+  }
 
   async createChallenge(input: {
     address: `0x${string}`;
@@ -141,7 +172,9 @@ export class WalletAuthService {
 
     let signatureValid = false;
     try {
-      signatureValid = await verifyMessage({
+      // publicClient.verifyMessageはEOA署名に加え、smart accountの
+      // ERC-1271(デプロイ済み)・ERC-6492(未デプロイ)署名も検証できる
+      signatureValid = await this.getPublicClient().verifyMessage({
         address: getAddress(challenge.address),
         message: input.message,
         signature: input.signature,

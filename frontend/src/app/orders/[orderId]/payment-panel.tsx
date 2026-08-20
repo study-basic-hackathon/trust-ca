@@ -5,6 +5,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { formatUnits, getAddress } from "viem";
 import { useConnection, useWriteContract } from "wagmi";
+import { useAuth } from "@/components/auth/auth-provider";
+import { getActiveKernel } from "@/lib/aa/kernel-client";
 import { AddressText } from "@/components/address-text";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -52,6 +54,7 @@ export function PaymentPanel({
 }) {
   const queryClient = useQueryClient();
   const connection = useConnection();
+  const { paymentMode } = useAuth();
   const { writeContractAsync } = useWriteContract();
   const [intentId, setIntentId] = useState<string | null>(null);
   const [isPaying, setIsPaying] = useState(false);
@@ -87,23 +90,47 @@ export function PaymentPanel({
 
   async function pay() {
     if (!intent) return;
-    if (
-      connection.status !== "connected" ||
-      connection.address?.toLowerCase() !== intent.fromAddress.toLowerCase() ||
-      connection.chainId !== intent.chainId
-    ) {
-      toast.error("支払条件と同じウォレット・ネットワークへ接続してください");
-      return;
-    }
     setIsPaying(true);
     try {
-      const txHash = await writeContractAsync({
-        address: getAddress(intent.tokenAddress),
-        abi: jpycAbi,
-        functionName: "transfer",
-        args: [getAddress(intent.toAddress), BigInt(intent.amountAtomic)],
-        chainId: intent.chainId,
-      });
+      let txHash: `0x${string}`;
+      if (paymentMode === "aa") {
+        // smart account経路: ZeroDev Paymasterがgasを負担するため
+        // 購入者はPOL残高なしで送金できる
+        const kernel = getActiveKernel();
+        if (
+          !kernel ||
+          kernel.aaAddress.toLowerCase() !== intent.fromAddress.toLowerCase()
+        ) {
+          toast.error(
+            "スマートアカウントを確認できません。再度ログインしてください",
+          );
+          return;
+        }
+        txHash = await kernel.sendJpycTransfer({
+          tokenAddress: getAddress(intent.tokenAddress),
+          to: getAddress(intent.toAddress),
+          amountAtomic: BigInt(intent.amountAtomic),
+        });
+      } else {
+        if (
+          connection.status !== "connected" ||
+          connection.address?.toLowerCase() !==
+            intent.fromAddress.toLowerCase() ||
+          connection.chainId !== intent.chainId
+        ) {
+          toast.error(
+            "支払条件と同じウォレット・ネットワークへ接続してください",
+          );
+          return;
+        }
+        txHash = await writeContractAsync({
+          address: getAddress(intent.tokenAddress),
+          abi: jpycAbi,
+          functionName: "transfer",
+          args: [getAddress(intent.toAddress), BigInt(intent.amountAtomic)],
+          chainId: intent.chainId,
+        });
+      }
       await submitPaymentTransaction(token, intent.id, txHash);
       await intentQuery.refetch();
       toast.success("送金を受け付けました。ブロックチェーン上で確認しています");
@@ -124,6 +151,8 @@ export function PaymentPanel({
         <CardTitle className="text-base">JPYCで支払う</CardTitle>
         <CardDescription>
           支払金額と受取先は注文から固定され、ブロックチェーン上の記録で検証されます。
+          {paymentMode === "aa" &&
+            "ガス代はTrustcaが負担するため、POL残高は不要です。"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
