@@ -70,7 +70,7 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:${DB_PORT:-5432}/trustca \
 pnpm test:payment:e2e
 ```
 
-結果: (実行後に記録)
+結果(2026-08-21実行): **成功**。SIWE認証 → payment intent(期限切れ・冪等性の分岐含む)→ JPYC transfer → workerによるreceipt検証・確定(confirmed/paid/sold同時) → 発送登録(paid→shipped、二重登録409)→ 受領確認(shipped→completed、未発送409)→ shipments.delivered_at / retention_until設定 → 監査イベント order.paid / order.shipped / order.completed の3件をDBで確認。
 
 ## ユーザー検収時に手動確認を推奨する項目
 

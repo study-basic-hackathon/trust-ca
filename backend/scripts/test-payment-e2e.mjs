@@ -102,6 +102,54 @@ async function authenticateWallet(account) {
   return verification.body.data;
 }
 
+/**
+ * 過去のrunが残したseller fixtureを、wallet addressを起点にFK順で削除する。
+ * cleanup失敗後の再実行でも独立して成立させるための保険。
+ */
+async function purgeStaleSellerFixture() {
+  const client = await pool.connect();
+  try {
+    const existing = await client.query(
+      `SELECT user_id FROM wallet_accounts
+        WHERE chain_id = $1 AND address_normalized = $2`,
+      [chainId, sellerAddress],
+    );
+    const staleUserId = existing.rows[0]?.user_id;
+    if (!staleUserId) return;
+    await client.query("BEGIN");
+    await client.query(
+      `DELETE FROM payment_intents WHERE order_id IN
+         (SELECT id FROM orders WHERE seller_id = $1)`,
+      [staleUserId],
+    );
+    await client.query(
+      `DELETE FROM shipments WHERE order_id IN
+         (SELECT id FROM orders WHERE seller_id = $1)`,
+      [staleUserId],
+    );
+    await client.query(
+      `DELETE FROM order_shipping_addresses WHERE order_id IN
+         (SELECT id FROM orders WHERE seller_id = $1)`,
+      [staleUserId],
+    );
+    await client.query(`DELETE FROM orders WHERE seller_id = $1`, [staleUserId]);
+    await client.query(`DELETE FROM listings WHERE seller_id = $1`, [staleUserId]);
+    await client.query(`DELETE FROM cards WHERE current_owner_id = $1`, [staleUserId]);
+    await client.query(`DELETE FROM wallet_auth_challenges WHERE user_id = $1`, [staleUserId]);
+    await client.query(`DELETE FROM wallet_accounts WHERE user_id = $1`, [staleUserId]);
+    await client.query(`DELETE FROM seller_limits WHERE seller_id = $1`, [staleUserId]);
+    await client.query(`DELETE FROM seller_profiles WHERE user_id = $1`, [staleUserId]);
+    await client.query(`DELETE FROM users WHERE id = $1`, [staleUserId]);
+    await client.query("COMMIT");
+    console.log("  OK: 過去runの残存fixtureを削除");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function createOrderFixture(buyerId) {
   const client = await pool.connect();
   try {
@@ -178,6 +226,7 @@ async function cleanupFixture() {
     await client.query("DELETE FROM orders WHERE id = $1", [orderId]);
     await client.query("DELETE FROM listings WHERE id = $1", [listingId]);
     await client.query("DELETE FROM cards WHERE id = $1", [cardId]);
+    await client.query("DELETE FROM wallet_auth_challenges WHERE user_id = $1", [sellerId]);
     await client.query("DELETE FROM wallet_accounts WHERE id = $1", [sellerWalletId]);
     await client.query("DELETE FROM seller_profiles WHERE user_id = $1", [sellerId]);
     await client.query("DELETE FROM users WHERE id = $1", [sellerId]);
@@ -191,6 +240,7 @@ async function cleanupFixture() {
 }
 
 try {
+  await purgeStaleSellerFixture();
   const session = await authenticateWallet(buyerAccount);
   console.log(`  OK: SIWE認証 user=${session.userId}`);
   await createOrderFixture(session.userId);

@@ -52,8 +52,8 @@
 
 ## Phase 8: 品質・受入・デプロイ準備(Block G)
 
-- [~] T070 E2E: 出品→購入→決済→発送→完了(test-payment-e2e 拡張または新スクリプト)
-- [~] T071 全パッケージ lint/typecheck/test/build green、日本語のみ検査(中国語文字の混入チェック)
+- [x] T070 E2E: 出品→購入→決済→発送→完了(test-payment-e2e 拡張または新スクリプト)
+- [x] T071 全パッケージ lint/typecheck/test/build green、日本語のみ検査(中国語文字の混入チェック)
 - [x] T072 docs/deploy/gcp-deployment.md(Cloud Run×2(API/worker)、Cloud SQL、Firebase App Hosting、Secret Manager、env一覧、手順)
 - [x] T073 受入チェックリスト(spec.md §3)の自己検証と結果記録
 - [ ] T074 PR作成(main向け)
