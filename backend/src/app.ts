@@ -10,6 +10,7 @@ import {
   getVisionConfig,
 } from "./env.js";
 import { createFixedWindowRateLimiter } from "./middleware/rate-limit.js";
+import { createAdminMarketplaceRoute } from "./routes/admin-marketplace.js";
 import { createAdminVerificationRoute } from "./routes/admin-verifications.js";
 import { createCardImageAnalysesRoute } from "./routes/card-image-analyses.js";
 import { createCardImagesRoute } from "./routes/card-images.js";
@@ -84,10 +85,9 @@ app.route(
   }),
 );
 app.route("/", createWebhookRoute({ pool, diditConfig }));
-app.route(
-  "/",
-  createAdminVerificationRoute({ pool, adminConfig: getAdminConfig() }),
-);
+const adminConfig = getAdminConfig();
+app.route("/", createAdminVerificationRoute({ pool, adminConfig }));
+app.route("/", createAdminMarketplaceRoute({ pool, adminConfig }));
 
 const visionConfig = getVisionConfig();
 app.route(

@@ -237,6 +237,28 @@ export async function getSellerLimits(
   };
 }
 
+/** 運営者向け全出品一覧(状態フィルタ任意)。 */
+export async function listListingsForAdmin(
+  pool: Pool,
+  options: { status: string | null; limit: number },
+): Promise<ListingDetail[]> {
+  const params: unknown[] = [];
+  let condition = "";
+  if (options.status) {
+    params.push(options.status);
+    condition = `WHERE l.status = $${params.length}`;
+  }
+  params.push(options.limit);
+  const result = await pool.query(
+    `${SELECT_LISTING_DETAIL}
+      ${condition}
+      ORDER BY l.created_at DESC
+      LIMIT $${params.length}`,
+    params,
+  );
+  return result.rows.map(toListingDetail);
+}
+
 /** 出品停止。出品者本人または運営者のみ。期待遷移元をWHEREへ含める。 */
 export async function closeListing(
   pool: Pool,

@@ -229,6 +229,28 @@ export async function listOrdersForUser(
   return result.rows.map(toOrderView);
 }
 
+/** 運営者向け全取引一覧(状態フィルタ任意)。 */
+export async function listOrdersForAdmin(
+  pool: Pool,
+  options: { status: string | null; limit: number },
+): Promise<OrderView[]> {
+  const params: unknown[] = [];
+  let condition = "";
+  if (options.status) {
+    params.push(options.status);
+    condition = `WHERE o.status = $${params.length}`;
+  }
+  params.push(options.limit);
+  const result = await pool.query(
+    `${SELECT_ORDER_VIEW}
+      ${condition}
+      ORDER BY o.created_at DESC
+      LIMIT $${params.length}`,
+    params,
+  );
+  return result.rows.map(toOrderView);
+}
+
 export async function getShippingAddress(
   pool: Pool,
   orderId: string,

@@ -46,9 +46,9 @@
 
 ## Phase 7: 管理コンソール(Block F)
 
-- [ ] T060 backend: GET /api/v1/admin/listings(+close)、GET /api/v1/admin/orders
-- [ ] T061 frontend: /admin ダッシュボード統合(eKYC審査・画像解析・出品管理・取引一覧)
-- [ ] T062 テスト: admin認可・強制close
+- [x] T060 backend: GET /api/v1/admin/listings(+close)、GET /api/v1/admin/orders
+- [x] T061 frontend: /admin ダッシュボード統合(eKYC審査・画像解析・出品管理・取引一覧)
+- [x] T062 テスト: admin認可・強制close
 
 ## Phase 8: 品質・受入・デプロイ準備(Block G)
 
