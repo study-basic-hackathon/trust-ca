@@ -20,6 +20,7 @@ import { createKycRoute } from "./routes/kyc.js";
 import { createListingsRoute } from "./routes/listings.js";
 import { createMeRoute } from "./routes/me.js";
 import { createOnchainAnchorRoute } from "./routes/onchain-anchors.js";
+import { createOrdersRoute } from "./routes/orders.js";
 import { createPaymentRoute } from "./routes/payments.js";
 import { createPsaVerificationRoute } from "./routes/psa-verifications.js";
 import { createSellerRoute } from "./routes/sellers.js";
@@ -52,10 +53,8 @@ app.route(
     pool,
   }),
 );
-app.route(
-  "/",
-  createOnchainAnchorRoute({ pool, config: getOnchainConfig() }),
-);
+const onchainConfig = getOnchainConfig();
+app.route("/", createOnchainAnchorRoute({ pool, config: onchainConfig }));
 const paymentConfig = getPaymentConfig();
 app.route("/", createWalletAuthRoute({ pool, config: paymentConfig }));
 app.route("/", createPaymentRoute({ pool, config: paymentConfig }));
@@ -63,6 +62,10 @@ app.route("/", createPaymentRoute({ pool, config: paymentConfig }));
 app.route(
   "/",
   createCardsRoute({ pool, walletConfig: paymentConfig }),
+);
+app.route(
+  "/",
+  createOrdersRoute({ pool, walletConfig: paymentConfig, onchainConfig }),
 );
 
 const diditConfig = getDiditConfig();

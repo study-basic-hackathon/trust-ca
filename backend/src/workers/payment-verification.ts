@@ -1,7 +1,7 @@
 import { setTimeout as sleep } from "node:timers/promises";
 import { JpycPaymentClient } from "../blockchain/jpyc-payment.js";
 import { pool } from "../db.js";
-import { getPaymentConfig } from "../env.js";
+import { getOnchainConfig, getPaymentConfig } from "../env.js";
 import { PaymentVerificationWorker } from "../services/payment-worker.js";
 
 const config = getPaymentConfig();
@@ -11,7 +11,18 @@ if (!config.enabled) {
 
 const paymentClient = new JpycPaymentClient(config);
 await paymentClient.assertReady();
-const worker = new PaymentVerificationWorker(pool, paymentClient, config);
+const onchainConfig = getOnchainConfig();
+const worker = new PaymentVerificationWorker(
+  pool,
+  paymentClient,
+  config,
+  onchainConfig.enabled
+    ? {
+        chainId: onchainConfig.chainId,
+        contractAddress: onchainConfig.contractAddress,
+      }
+    : undefined,
+);
 const abortController = new AbortController();
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {

@@ -32,15 +32,15 @@
 
 ## Phase 5: 購入フロー(Block D)
 
-- [ ] T040 backend: db/orders.ts + services/orders.ts + routes/orders.ts(POST=listing reserve+価格snapshot、GET詳細、GET一覧(buyer/seller)。自己購入拒否)
-- [ ] T041 backend: 注文・決済確定イベントの監査組込み(payment confirm transaction へ audit_events + onchain_outbox 追加。anchor tx を注文詳細APIで返却)
+- [x] T040 backend: db/orders.ts + services/orders.ts + routes/orders.ts(POST=listing reserve+価格snapshot、GET詳細、GET一覧(buyer/seller)。自己購入拒否)
+- [x] T041 backend: 注文・決済確定イベントの監査組込み(payment confirm transaction へ audit_events + onchain_outbox 追加。anchor tx を注文詳細APIで返却)
 - [ ] T042 frontend: 購入確認→注文作成→JPYC決済(既存 /payments/demo のロジックを本フローへ改組)→決済状態表示
 - [ ] T043 テスト: orders(reserve競合409・snapshot・自己購入拒否)、監査イベント生成
 
 ## Phase 6: 発送・完了フロー(Block E)
 
-- [ ] T050 backend: migration 0004(orders状態追加、shipments、order_shipping_addresses+retention_until)
-- [ ] T051 backend: db/shipments.ts + services/shipments.ts + routes(発送登録、受領確認、追跡状態取得。配送先はorder作成時に登録、当事者+運営者のみ参照可)
+- [x] T050 backend: migration 0004(orders状態追加、shipments、order_shipping_addresses+retention_until)
+- [x] T051 backend: db/shipments.ts + services/shipments.ts + routes(発送登録、受領確認、追跡状態取得。配送先はorder作成時に登録、当事者+運営者のみ参照可)
 - [ ] T052 frontend: 配送先入力(注文時)、発送登録画面(販売者)、物流追跡画面(タイムライン)、取引完了画面(丁寧に: サマリ+信頼シグナル+監査リンク)
 - [ ] T053 テスト: 状態遷移(不正遷移409)、PII参照認可、migrationテスト更新
 

@@ -27,6 +27,11 @@ export class PaymentVerificationWorker {
     private readonly pool: Pool,
     private readonly paymentClient: Pick<JpycPaymentClient, "verifyTransfer">,
     private readonly config: PaymentConfig,
+    /** 有効時、決済確定と同一transactionでorder.paid監査イベントを作成する */
+    private readonly auditAnchor?: {
+      chainId: number;
+      contractAddress: `0x${string}`;
+    },
   ) {}
 
   async runOnce(): Promise<PaymentWorkerRunSummary> {
@@ -71,6 +76,7 @@ export class PaymentVerificationWorker {
         paymentIntentId: job.id,
         workerId: this.config.workerId,
         blockNumber: receipt.blockNumber,
+        auditAnchor: this.auditAnchor,
       });
       return "confirmed";
     } catch (error) {
