@@ -170,3 +170,24 @@ Diditコンソールで本番アプリケーションのWebhook URLを
 - [ ] 古物営業法・特商法・個人情報保護の整理([ekyc-design.md §4.5](../design/ekyc-design.md))
 - [ ] `order_shipping_addresses.retention_until`超過行の削除job(別Issue)
 - [ ] Cloud Monitoringアラート([api-catalog.md §10](../design/api-catalog.md)の指標)
+
+---
+
+## 付録: 2026-08-21 初回デプロイの実績と注意点
+
+| 項目 | 値 |
+|---|---|
+| GCPプロジェクト | `trust-ca-506116`(region: asia-northeast1) |
+| frontend | https://trustca-frontend-86426383469.asia-northeast1.run.app |
+| backend | https://trustca-backend-86426383469.asia-northeast1.run.app |
+| Cloud SQL | `trustca-pg`(PostgreSQL 16, enterprise / db-f1-micro / HDD 10GB / zonal / backupなし = 最安構成) |
+| worker | Cloud Run **worker pool** `trustca-worker-payment`(`gcloud beta run worker-pools`、scaling=1)。コマンドは`node dist/workers/payment-verification.js`(tsxはprod imageに無い) |
+| 画像bucket | `gs://trust-ca-506116-card-images`(非公開) |
+| migration | Cloud Run Job `trustca-migrate`(args: `scripts/migrate.mjs`。`up`引数は不要) |
+
+運用上の注意:
+
+1. **`/healthz`はrun.app URLでは外部から到達できない**(Google Frontendの予約パスで404になる)。外形監視には`/api/v1/listings`等を使う。コンテナ自体のprobeには影響しない。
+2. **`polygon-rpc.com`は廃止済み**(401 tenant disabled)。keyless RPCは`https://polygon-bor-rpc.publicnode.com`を使用中。本番は専用RPC(Alchemy/Infura等)へ差し替えを推奨。
+3. Cloud Run新プロジェクトのURLは決定的形式`https://SERVICE-PROJECT_NUMBER.REGION.run.app`が有効。
+4. `ONCHAIN_MVP_ENABLED=false`で稼働中(監査anchor contract未デプロイのため)。有効化時はcontractデプロイ→env設定→worker-onchainのworker pool追加。
