@@ -19,8 +19,8 @@
 ## Phase 3: 認証×身元統合(Block B-後半)
 
 - [x] T020 backend: セッション認可ミドルウェア整備(wallet session → user解決)。POST /api/v1/sellers を認証必須にし users↔seller_profiles 紐付け(既存暫定認可の置換)。GET /api/v1/me(自分のuser/seller/wallet/eKYC状態)
-- [ ] T021 frontend: マイページ(販売者登録→eKYC開始→状態表示。poc/ekyc のステッパー/タイムラインの意匠を移植)
-- [ ] T022 テスト: me/sellers 認可、wallet二重紐付け拒否
+- [x] T021 frontend: マイページ(販売者登録→eKYC開始→状態表示。poc/ekyc のステッパー/タイムラインの意匠を移植)
+- [x] T022 テスト: me/sellers 認可、wallet二重紐付け拒否
 
 ## Phase 4: 出品フロー(Block C)
 
