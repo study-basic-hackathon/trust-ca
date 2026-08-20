@@ -15,7 +15,9 @@ import { createCardImageAnalysesRoute } from "./routes/card-image-analyses.js";
 import { createCardImagesRoute } from "./routes/card-images.js";
 import { createCardImageUploadsRoute } from "./routes/card-image-uploads.js";
 import { healthRoute } from "./routes/health.js";
+import { createCardsRoute } from "./routes/cards.js";
 import { createKycRoute } from "./routes/kyc.js";
+import { createListingsRoute } from "./routes/listings.js";
 import { createMeRoute } from "./routes/me.js";
 import { createOnchainAnchorRoute } from "./routes/onchain-anchors.js";
 import { createPaymentRoute } from "./routes/payments.js";
@@ -47,6 +49,7 @@ app.route(
     config: psaConfig,
     service: psaService,
     rateLimiter: createFixedWindowRateLimiter(psaConfig.requestsPerMinute),
+    pool,
   }),
 );
 app.route(
@@ -56,6 +59,11 @@ app.route(
 const paymentConfig = getPaymentConfig();
 app.route("/", createWalletAuthRoute({ pool, config: paymentConfig }));
 app.route("/", createPaymentRoute({ pool, config: paymentConfig }));
+
+app.route(
+  "/",
+  createCardsRoute({ pool, walletConfig: paymentConfig }),
+);
 
 const diditConfig = getDiditConfig();
 app.route("/", createSellerRoute({ pool, walletConfig: paymentConfig }));
@@ -79,6 +87,10 @@ app.route(
 );
 
 const visionConfig = getVisionConfig();
+app.route(
+  "/",
+  createListingsRoute({ pool, walletConfig: paymentConfig, visionConfig }),
+);
 const visionService = new VisionAnnotationService({
   apiBaseUrl: visionConfig.apiBaseUrl,
   timeoutMs: visionConfig.timeoutMs,

@@ -24,8 +24,8 @@
 
 ## Phase 4: 出品フロー(Block C)
 
-- [ ] T030 backend: db/listings.ts + services/listings.ts + routes/listings.ts(POST/GET一覧/GET詳細/PATCH/close。eKYC承認・seller_limits・Cert重複・PSA/Vision状態の強制。価格はprice_minor)
-- [ ] T031 backend: cards 作成をウィザードに統合(既存 card-images / psa-verifications / card-image-analyses と接続)
+- [x] T030 backend: db/listings.ts + services/listings.ts + routes/listings.ts(POST/GET一覧/GET詳細/PATCH/close。eKYC承認・seller_limits・Cert重複・PSA/Vision状態の強制。価格はprice_minor)
+- [x] T031 backend: cards 作成をウィザードに統合(既存 card-images / psa-verifications / card-image-analyses と接続)
 - [ ] T032 frontend: 出品ウィザード(4step: カード情報→画像→検証(PSA/Vision分岐)→確認)
 - [ ] T033 frontend: 商品一覧(検索/フィルタ)・商品詳細(信頼シグナル個別表示)
 - [ ] T034 テスト: listings service/route(承認なし拒否・limits超過・Cert重複409・状態遷移)

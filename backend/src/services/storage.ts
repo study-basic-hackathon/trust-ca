@@ -31,9 +31,9 @@ export type StorageFileLike = {
   download(): Promise<[Buffer, ...unknown[]]>;
   getSignedUrl(options: {
     version: "v4";
-    action: "write";
+    action: "write" | "read";
     expires: number;
-    contentType: string;
+    contentType?: string;
   }): Promise<[string, ...unknown[]]>;
 };
 
@@ -71,6 +71,30 @@ export async function issueUploadUrl(params: {
       contentType: params.contentType,
     });
   return { objectKey, uploadUrl };
+}
+
+/**
+ * 非公開bucketの画像を表示するための短時間有効な閲覧URLを発行する。
+ * URLは失効前提の一時参照であり、DBへ保存しない(api-catalog.md §5.5)。
+ */
+export async function issueDownloadUrl(params: {
+  bucket: string;
+  objectKey: string;
+  ttlSeconds: number;
+  now?: () => number;
+  storageClient?: StorageClientLike;
+}): Promise<string> {
+  const client = params.storageClient ?? getDefaultClient();
+  const now = params.now ?? Date.now;
+  const [downloadUrl] = await client
+    .bucket(params.bucket)
+    .file(params.objectKey)
+    .getSignedUrl({
+      version: "v4",
+      action: "read",
+      expires: now() + params.ttlSeconds * 1_000,
+    });
+  return downloadUrl;
 }
 
 export async function verifyUploadedObject(params: {
