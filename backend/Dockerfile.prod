@@ -1,0 +1,25 @@
+# 本番用(Cloud Run)。開発用のDockerfileとは分離している。
+# ビルド: docker build -f Dockerfile.prod -t trustca-backend .
+
+FROM node:24-alpine AS build
+WORKDIR /app
+RUN corepack enable
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY tsconfig.json ./
+COPY src ./src
+RUN pnpm build
+
+FROM node:24-alpine AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+RUN corepack enable
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile --prod
+COPY --from=build /app/dist ./dist
+# migration実行用(Cloud Run Jobから scripts/migrate.mjs を使う)
+COPY scripts ./scripts
+COPY src/db/migrations ./src/db/migrations
+
+EXPOSE 8080
+CMD ["node", "dist/index.js"]

@@ -181,6 +181,14 @@ services:
       PAYMENT_SIWE_DOMAIN: localhost:${FRONTEND_PORT:-3000}
       PAYMENT_SIWE_URI: http://localhost:${FRONTEND_PORT:-3000}
       PAYMENT_WORKER_ID: compose-payment-worker
+      # order.paid監査イベント(audit_events+onchain_outbox)の作成に使用
+      ONCHAIN_MVP_ENABLED: "true"
+      ONCHAIN_RPC_URL: http://chain:8545
+      ONCHAIN_CHAIN_ID: 31337
+      ONCHAIN_CHAIN_NAME: Trustca Local
+      ONCHAIN_ANCHOR_CONTRACT: ${ONCHAIN_ANCHOR_CONTRACT:-0x5fbdb2315678afecb367f032d93f642f64180aa3}
+      ONCHAIN_OPERATOR_PRIVATE_KEY: ${ONCHAIN_OPERATOR_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
+      ONCHAIN_INTERNAL_TOKEN: ${ONCHAIN_INTERNAL_TOKEN:-local-onchain-internal-token-change-me}
     volumes:
       - ./backend:/app
       - /app/node_modules

@@ -1,0 +1,48 @@
+# Firebase App Hosting 設定(本番)
+# 秘密値はSecret Manager参照(secret:)を使い、このファイルへ直書きしない。
+# 手順は docs/deploy/gcp-deployment.md を参照。
+
+runConfig:
+  minInstances: 0
+  maxInstances: 4
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 512
+
+env:
+  # SSR(サーバー側)からbackendを呼ぶURL(Cloud RunのURL)
+  - variable: BACKEND_URL
+    value: https://REPLACE_WITH_CLOUD_RUN_URL
+    availability:
+      - RUNTIME
+  # ブラウザからbackendを呼ぶ公開URL
+  - variable: NEXT_PUBLIC_BACKEND_URL
+    value: https://REPLACE_WITH_CLOUD_RUN_URL
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_WEB3AUTH_CLIENT_ID
+    value: REPLACE_WITH_WEB3AUTH_CLIENT_ID
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_PAYMENT_CHAIN_ID
+    value: "137"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_PAYMENT_CHAIN_NAME
+    value: Polygon
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_PAYMENT_RPC_URL
+    value: https://polygon-rpc.com
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_PAYMENT_EXPLORER_URL
+    value: https://polygonscan.com
+    availability:
+      - BUILD
+      - RUNTIME

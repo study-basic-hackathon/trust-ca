@@ -18,7 +18,6 @@ ALTER TABLE orders ADD CONSTRAINT orders_paid_at_check CHECK (
 );
 ALTER TABLE orders ADD COLUMN shipped_at timestamp with time zone;
 ALTER TABLE orders ADD COLUMN delivered_at timestamp with time zone;
-ALTER TABLE orders ADD COLUMN completed_at timestamp with time zone;
 
 -- 2. shipments: 追跡番号による発送記録(1注文1件)
 CREATE TABLE shipments (

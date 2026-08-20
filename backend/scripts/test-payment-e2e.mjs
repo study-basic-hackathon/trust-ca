@@ -23,6 +23,10 @@ const tokenAddress = (
 const buyerAccount = privateKeyToAccount(
   "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
 );
+// Hardhat account #2(公開開発鍵)。発送登録のSIWE認証に使用する
+const sellerAccount = privateKeyToAccount(
+  "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
+);
 const sellerAddress = "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc";
 const sellerId = randomUUID();
 const sellerWalletId = randomUUID();
@@ -69,13 +73,13 @@ async function request(path, init = {}) {
   return { response, body };
 }
 
-async function authenticateBuyer() {
+async function authenticateWallet(account) {
   const challenge = await request("/api/v1/wallet-auth/challenges", {
     method: "POST",
-    body: JSON.stringify({ address: buyerAccount.address, chainId }),
+    body: JSON.stringify({ address: account.address, chainId }),
   });
   assert.equal(challenge.response.status, 201, JSON.stringify(challenge.body));
-  const signature = await buyerAccount.signMessage({
+  const signature = await account.signMessage({
     message: challenge.body.data.message,
   });
   const verification = await request("/api/v1/wallet-auth/verifications", {
@@ -93,7 +97,7 @@ async function authenticateBuyer() {
   );
   assert.equal(
     verification.body.data.walletAddress,
-    buyerAccount.address.toLowerCase(),
+    account.address.toLowerCase(),
   );
   return verification.body.data;
 }
@@ -134,6 +138,14 @@ async function createOrderFixture(buyerId) {
        ) VALUES ($1, $2, $3, $4, 'pending_payment', 12000, 'JPY')`,
       [orderId, listingId, buyerId, sellerId],
     );
+    await client.query(
+      `INSERT INTO order_shipping_addresses (
+         id, order_id, recipient_name, postal_code, prefecture, city,
+         address_line1, phone_number
+       ) VALUES ($1, $2, 'E2E受取人', '100-0001', '東京都', '千代田区',
+                 '千代田1-1-1', '090-0000-0000')`,
+      [randomUUID(), orderId],
+    );
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
@@ -148,6 +160,21 @@ async function cleanupFixture() {
   try {
     await client.query("BEGIN");
     await client.query("DELETE FROM payment_intents WHERE order_id = $1", [orderId]);
+    await client.query(
+      `DELETE FROM onchain_outbox
+        WHERE audit_event_id IN (
+          SELECT id FROM audit_events
+           WHERE aggregate_type = 'order' AND aggregate_id = $1
+        )`,
+      [orderId],
+    );
+    await client.query(
+      `DELETE FROM audit_events
+        WHERE aggregate_type = 'order' AND aggregate_id = $1`,
+      [orderId],
+    );
+    await client.query("DELETE FROM shipments WHERE order_id = $1", [orderId]);
+    await client.query("DELETE FROM order_shipping_addresses WHERE order_id = $1", [orderId]);
     await client.query("DELETE FROM orders WHERE id = $1", [orderId]);
     await client.query("DELETE FROM listings WHERE id = $1", [listingId]);
     await client.query("DELETE FROM cards WHERE id = $1", [cardId]);
@@ -164,7 +191,7 @@ async function cleanupFixture() {
 }
 
 try {
-  const session = await authenticateBuyer();
+  const session = await authenticateWallet(buyerAccount);
   console.log(`  OK: SIWE認証 user=${session.userId}`);
   await createOrderFixture(session.userId);
 
@@ -273,7 +300,86 @@ try {
     tx_hash: txHash.toLowerCase(),
   });
   console.log(`  OK: workerがblock ${current.blockNumber} で支払いを確定`);
-  console.log("Web3Auth/SIWE・JPYC決済E2Eに成功しました。");
+
+  // ---- 発送・受領確認フロー(shipping-flow.md) ----
+  const sellerSession = await authenticateWallet(sellerAccount);
+  assert.equal(sellerSession.userId, sellerId);
+  const sellerAuthorization = `Bearer ${sellerSession.token}`;
+
+  const sellerOrderView = await request(`/api/v1/orders/${orderId}`, {
+    headers: { authorization: sellerAuthorization },
+  });
+  assert.equal(sellerOrderView.response.status, 200);
+  assert.equal(
+    sellerOrderView.body.data.shippingAddress.recipientName,
+    "E2E受取人",
+    "発送前の販売者は配送先を参照できること",
+  );
+
+  const prematureDelivery = await request(
+    `/api/v1/orders/${orderId}/delivery-confirmation`,
+    { method: "POST", headers: { authorization } },
+  );
+  assert.equal(
+    prematureDelivery.response.status,
+    409,
+    "未発送での受領確認は409であること",
+  );
+
+  const shipment = await request(`/api/v1/orders/${orderId}/shipment`, {
+    method: "POST",
+    headers: { authorization: sellerAuthorization },
+    body: JSON.stringify({ carrier: "yamato", trackingNumber: "E2E-1234-5678" }),
+  });
+  assert.equal(shipment.response.status, 200, JSON.stringify(shipment.body));
+  console.log("  OK: 発送登録(paid→shipped)");
+
+  const duplicateShipment = await request(`/api/v1/orders/${orderId}/shipment`, {
+    method: "POST",
+    headers: { authorization: sellerAuthorization },
+    body: JSON.stringify({ carrier: "yamato", trackingNumber: "E2E-9999-0000" }),
+  });
+  assert.equal(
+    duplicateShipment.response.status,
+    409,
+    "二重の発送登録は409であること",
+  );
+
+  const delivery = await request(
+    `/api/v1/orders/${orderId}/delivery-confirmation`,
+    { method: "POST", headers: { authorization } },
+  );
+  assert.equal(delivery.response.status, 200, JSON.stringify(delivery.body));
+  console.log("  OK: 受領確認(shipped→completed)");
+
+  const finalState = await pool.query(
+    `SELECT o.status AS order_status, s.delivered_at, a.retention_until
+       FROM orders o
+       JOIN shipments s ON s.order_id = o.id
+       JOIN order_shipping_addresses a ON a.order_id = o.id
+      WHERE o.id = $1`,
+    [orderId],
+  );
+  assert.equal(finalState.rows[0].order_status, "completed");
+  assert.ok(finalState.rows[0].delivered_at, "shipments.delivered_atが設定されること");
+  assert.ok(
+    finalState.rows[0].retention_until,
+    "配送先のretention_untilが設定されること",
+  );
+
+  const auditEvents = await pool.query(
+    `SELECT event_type FROM audit_events
+      WHERE aggregate_type = 'order' AND aggregate_id = $1
+      ORDER BY occurred_at`,
+    [orderId],
+  );
+  assert.deepEqual(
+    auditEvents.rows.map((row) => row.event_type),
+    ["order.paid", "order.shipped", "order.completed"],
+    "注文の監査イベントが3件記録されること",
+  );
+  console.log("  OK: 監査イベント(order.paid/shipped/completed)を確認");
+  console.log("SIWE認証・JPYC決済・発送・受領確認のE2Eに成功しました。");
 } finally {
   await cleanupFixture();
   await pool.end();
