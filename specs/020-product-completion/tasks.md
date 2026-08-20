@@ -77,7 +77,7 @@
 
 ## Phase 11: 視覚デザイン刷新
 
-- [ ] T110 トークン拡張(§7.1)+framer-motion導入
-- [ ] T111 LP・商品カード・詳細・完了画面の刷新(§7.2-7.3)
-- [ ] T112 全画面の統一パス+build/lint green
+- [x] T110 トークン拡張(§7.1)+framer-motion導入
+- [x] T111 LP・商品カード・詳細・完了画面の刷新(§7.2-7.3)
+- [x] T112 全画面の統一パス+build/lint green(backend 154テスト緑)
 - [ ] T113 再デプロイ(frontend/backend)
