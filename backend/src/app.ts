@@ -16,6 +16,7 @@ import { createCardImagesRoute } from "./routes/card-images.js";
 import { createCardImageUploadsRoute } from "./routes/card-image-uploads.js";
 import { healthRoute } from "./routes/health.js";
 import { createKycRoute } from "./routes/kyc.js";
+import { createMeRoute } from "./routes/me.js";
 import { createOnchainAnchorRoute } from "./routes/onchain-anchors.js";
 import { createPaymentRoute } from "./routes/payments.js";
 import { createPsaVerificationRoute } from "./routes/psa-verifications.js";
@@ -57,7 +58,11 @@ app.route("/", createWalletAuthRoute({ pool, config: paymentConfig }));
 app.route("/", createPaymentRoute({ pool, config: paymentConfig }));
 
 const diditConfig = getDiditConfig();
-app.route("/", createSellerRoute({ pool }));
+app.route("/", createSellerRoute({ pool, walletConfig: paymentConfig }));
+app.route(
+  "/",
+  createMeRoute({ pool, walletConfig: paymentConfig, diditConfig }),
+);
 app.route(
   "/",
   createKycRoute({

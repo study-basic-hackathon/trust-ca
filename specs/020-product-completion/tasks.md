@@ -12,13 +12,13 @@
 
 ## Phase 2: フロントエンド基盤(Block A-前半)
 
-- [ ] T010 Tailwind CSS v4 + shadcn/ui 導入、デザイントークン(安心・安全のライトテーマ)、共通レイアウト(ヘッダー/フッター/ナビ)
-- [ ] T011 認証プロバイダ統合: Web3Auth Modal(Google/Discord/X)+ wagmi injected の二重入口 → 既存 /api/v1/wallet-auth/* で SIWE → session。zustand + React Query。セッション状態のヘッダー表示・ガード
-- [ ] T012 ランディングページ(事前審査型の訴求)・利用規約・プライバシーポリシー画面
+- [x] T010 Tailwind CSS v4 + shadcn/ui 導入、デザイントークン(安心・安全のライトテーマ)、共通レイアウト(ヘッダー/フッター/ナビ)
+- [x] T011 認証プロバイダ統合: Web3Auth Modal(Google/Discord/X)+ wagmi injected の二重入口 → 既存 /api/v1/wallet-auth/* で SIWE → session。zustand + React Query。セッション状態のヘッダー表示・ガード
+- [x] T012 ランディングページ(事前審査型の訴求)・利用規約・プライバシーポリシー画面
 
 ## Phase 3: 認証×身元統合(Block B-後半)
 
-- [ ] T020 backend: セッション認可ミドルウェア整備(wallet session → user解決)。POST /api/v1/sellers を認証必須にし users↔seller_profiles 紐付け(既存暫定認可の置換)。GET /api/v1/me(自分のuser/seller/wallet/eKYC状態)
+- [x] T020 backend: セッション認可ミドルウェア整備(wallet session → user解決)。POST /api/v1/sellers を認証必須にし users↔seller_profiles 紐付け(既存暫定認可の置換)。GET /api/v1/me(自分のuser/seller/wallet/eKYC状態)
 - [ ] T021 frontend: マイページ(販売者登録→eKYC開始→状態表示。poc/ekyc のステッパー/タイムラインの意匠を移植)
 - [ ] T022 テスト: me/sellers 認可、wallet二重紐付け拒否
 
