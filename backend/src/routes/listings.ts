@@ -12,6 +12,7 @@ import {
   listCardImagesByCard,
   listPrimaryImagesByCards,
 } from "../db/card-images.js";
+import { releaseExpiredReservations } from "../db/orders.js";
 import type { PaymentConfig, VisionConfig } from "../env.js";
 import {
   resolveWalletSession,
@@ -155,6 +156,18 @@ export function createListingsRoute(dependencies: Dependencies): Hono {
   });
 
   route.get("/api/v1/listings", async (c) => {
+    // 放置された未払い予約を解放し、商品が自動で再公開されるようにする
+    // (買い手が明示キャンセルしなくても在庫が塞がったままにならない)。
+    // best-effort: 失敗しても一覧取得は継続する。
+    try {
+      await releaseExpiredReservations(
+        dependencies.pool,
+        dependencies.walletConfig.reservationTtlSeconds,
+      );
+    } catch (error) {
+      console.error("放置予約の解放に失敗しました", error);
+    }
+
     const rawLimit = Number(c.req.query("limit") ?? DEFAULT_PAGE_LIMIT);
     const limit = Number.isInteger(rawLimit)
       ? Math.min(Math.max(rawLimit, 1), MAX_PAGE_LIMIT)

@@ -91,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const resolveSigner = useCallback(async (): Promise<Signer | null> => {
     let provider: EIP1193Provider | null = null;
-    let resolvedConnectorName: string | null = connectorName;
+    let resolvedConnectorName: string | null = null;
 
     if (connection.status === "connected" && connection.address) {
       provider = (web3Auth?.provider as EIP1193Provider | null) ?? null;
@@ -102,6 +102,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       provider = connected.ethereumProvider as EIP1193Provider;
       resolvedConnectorName = connected.connectorName;
     }
+
+    // 接続中のconnectorはweb3Auth.primaryConnectorNameが権威(reconnect後も保持)。
+    // hookのconnectorNameはuseEffect経由で非同期設定されるためrace的にnullに
+    // なりうる。これに依存するとリロード後の再ログインでソーシャルでもEOA経路に
+    // 落ち、AAアドレスと異なる別ユーザーになってしまう(注文が孤立し404/403)。
+    resolvedConnectorName =
+      resolvedConnectorName ??
+      web3Auth?.primaryConnectorName ??
+      connectorName;
 
     // ソーシャルログイン + ZeroDev設定あり → smart account(gasless)経路
     if (

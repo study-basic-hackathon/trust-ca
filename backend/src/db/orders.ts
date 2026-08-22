@@ -151,8 +151,41 @@ const SELECT_ORDER_VIEW = `
     LEFT JOIN shipments s ON s.order_id = o.id`;
 
 /**
+ * 放置された未払い予約の解放。pending_paymentのままTTLを超えた注文を
+ * cancelledにし、対応するlistingをreserved→activeへ戻す。決済確認中
+ * (payment_submitted)には触れない。閲覧・購入の読み取り経路から遅延実行し、
+ * 買い手が明示キャンセルしなくても商品が自動で再公開されるようにする。
+ * @returns 解放した予約件数
+ */
+export async function releaseExpiredReservations(
+  pool: Pool,
+  ttlSeconds: number,
+): Promise<number> {
+  return withTransaction(pool, async (client) => {
+    const expired = await client.query(
+      `UPDATE orders
+          SET status = 'cancelled'
+        WHERE status = 'pending_payment'
+          AND created_at < NOW() - make_interval(secs => $1)
+      RETURNING listing_id`,
+      [ttlSeconds],
+    );
+    for (const row of expired.rows) {
+      await client.query(
+        `UPDATE listings
+            SET status = 'active', closed_at = NULL
+          WHERE id = $1 AND status = 'reserved'`,
+        [String(row.listing_id)],
+      );
+    }
+    return expired.rowCount ?? 0;
+  });
+}
+
+/**
  * 注文作成: listingをactive→reservedへ予約し、価格snapshotと配送先を
  * 同一transactionで保存する。reserve競合は409相当のエラー。
+ * 予約前に、同じlistingを塞いでいる放置予約(TTL超過)を解放して自己修復する。
  */
 export async function createOrderFromListing(
   pool: Pool,
@@ -160,9 +193,28 @@ export async function createOrderFromListing(
     listingId: string;
     buyerId: string;
     shippingAddress: ShippingAddressInput;
+    reservationTtlSeconds: number;
   },
 ): Promise<{ orderId: string }> {
   return withTransaction(pool, async (client) => {
+    // このlistingを塞ぐ放置予約(TTL超過のpending_payment)を先に解放する
+    const staleOrders = await client.query(
+      `UPDATE orders
+          SET status = 'cancelled'
+        WHERE listing_id = $1 AND status = 'pending_payment'
+          AND created_at < NOW() - make_interval(secs => $2)
+      RETURNING id`,
+      [input.listingId, input.reservationTtlSeconds],
+    );
+    if ((staleOrders.rowCount ?? 0) > 0) {
+      await client.query(
+        `UPDATE listings
+            SET status = 'active', closed_at = NULL
+          WHERE id = $1 AND status = 'reserved'`,
+        [input.listingId],
+      );
+    }
+
     const reserveResult = await client.query(
       `UPDATE listings
           SET status = 'reserved'

@@ -176,6 +176,7 @@ export function createOrdersRoute(dependencies: Dependencies): Hono {
         listingId: body.listingId,
         buyerId: session.userId,
         shippingAddress,
+        reservationTtlSeconds: dependencies.walletConfig.reservationTtlSeconds,
       });
       return c.json({ data: { id: orderId } }, 201);
     } catch (error) {
