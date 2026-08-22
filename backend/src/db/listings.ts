@@ -116,7 +116,7 @@ export async function createListing(
          (id, card_id, seller_id, title, description, price_minor, currency,
           status, published_at)
        VALUES ($1, $2, $3, $4, $5, $6, 'JPY', $7,
-               CASE WHEN $7 = 'active' THEN CURRENT_TIMESTAMP ELSE NULL END)
+               CASE WHEN $8 THEN CURRENT_TIMESTAMP ELSE NULL END)
        RETURNING id, card_id, seller_id, title, description, price_minor,
                  currency, status, published_at, closed_at, created_at`,
       [
@@ -127,6 +127,7 @@ export async function createListing(
         input.description,
         input.priceMinor.toString(),
         input.requiresReview ? "draft" : "active",
+        !input.requiresReview,
       ],
     );
     return toListing(result.rows[0]);
