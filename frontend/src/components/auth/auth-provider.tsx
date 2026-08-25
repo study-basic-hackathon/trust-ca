@@ -9,7 +9,9 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useState,
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
@@ -73,21 +75,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { signMessageAsync } = useSignMessage();
   const { status, session, setStatus, setSession, clear } = useAuthStore();
 
-  // sessionの有効性: 接続中かつ、sessionのwalletが
-  // (a) 接続walletそのもの(EOA)、または (b) 接続wallet(owner)から導出した
-  // smart account、のいずれかに一致していること
+  // sessionはsessionStorageに永続化され、リロード・eKYC等の外部リダイレクト後も
+  // 維持される(有効性=JWT expはstore側で検証済み)。以前は「接続中のwalletと一致」を
+  // ログイン状態の条件にしていたが、これだとリロード直後(wallet再接続前)や
+  // eKYC復帰時にログアウト扱いになり実用に耐えなかった。認証の実体はbackend発行の
+  // sessionトークンであり、wallet接続はログイン状態の必要条件ではない。実際に署名が
+  // 要る操作(支払い)は payment panel 側で接続・kernelを個別に検証する。
+  // kernelはReact外のmodule cache。再構築後に支払いモードを再評価させるための再描画トリガ
+  const [kernelEpoch, setKernelEpoch] = useState(0);
+  void kernelEpoch;
   const kernel = getActiveKernel();
-  const isSessionBackedByConnection =
-    session !== null &&
-    connection.status === "connected" &&
-    connection.chainId === session.chainId &&
-    (connection.address?.toLowerCase() === session.walletAddress.toLowerCase() ||
-      (kernel !== null &&
-        kernel.ownerAddress.toLowerCase() ===
-          connection.address?.toLowerCase() &&
-        kernel.aaAddress.toLowerCase() ===
-          session.walletAddress.toLowerCase()));
-  const activeSession = isSessionBackedByConnection ? session : null;
+  const activeSession = session;
+
+  // リロードでmodule内kernelキャッシュは失われる。ソーシャルログイン(AA)の
+  // sessionが復元され、web3Authが同じownerで再接続できたらkernelを再構築し、
+  // リロード後もAA(ガス不要)での支払いを継続できるようにする。
+  useEffect(() => {
+    const provider = web3Auth?.provider as EIP1193Provider | null | undefined;
+    if (
+      !provider ||
+      !session ||
+      !isAaEnabled() ||
+      connection.status !== "connected" ||
+      getActiveKernel() !== null ||
+      web3Auth?.primaryConnectorName !== SOCIAL_CONNECTOR_NAME
+    ) {
+      return;
+    }
+    let cancelled = false;
+    void buildKernelContext(provider)
+      .then(() => {
+        // kernel再構築完了 → paymentMode等を再評価させるため再描画する
+        if (!cancelled) setKernelEpoch((n) => n + 1);
+      })
+      .catch(() => {
+        // 再構築失敗時は支払い時に再ログインを促すため、ここでは握りつぶす
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [web3Auth, connection.status, session]);
 
   const resolveSigner = useCallback(async (): Promise<Signer | null> => {
     let provider: EIP1193Provider | null = null;
