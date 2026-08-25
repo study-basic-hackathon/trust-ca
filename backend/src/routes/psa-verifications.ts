@@ -1,4 +1,6 @@
 import { Hono } from "hono";
+import type { Pool } from "pg";
+import { insertPsaVerification } from "../db/psa-verifications.js";
 import type { PsaConfig } from "../env.js";
 import type { FixedWindowRateLimiter } from "../middleware/rate-limit.js";
 import {
@@ -10,6 +12,8 @@ type Dependencies = {
   config: PsaConfig;
   service: Pick<PsaVerificationService, "verify">;
   rateLimiter: FixedWindowRateLimiter;
+  /** 未指定の場合は照会結果を永続化しない(テスト用) */
+  pool?: Pool;
 };
 
 const CERT_NUMBER_PATTERN = /^\d{1,32}$/;
@@ -97,7 +101,13 @@ export function createPsaVerificationRoute(dependencies: Dependencies): Hono {
 
     try {
       const result = await dependencies.service.verify(certNumber);
-      return c.json({ data: result }, 200);
+      // 確定結果はDBへ永続化し、カード紐付け(latest_psa_verification_id)と
+      // 監査履歴に使う(一時障害はserviceがthrowするため到達しない)。
+      let verificationId: string | null = null;
+      if (dependencies.pool) {
+        verificationId = await insertPsaVerification(dependencies.pool, result);
+      }
+      return c.json({ data: { ...result, verificationId } }, 200);
     } catch (error) {
       const code =
         error instanceof PsaServiceError

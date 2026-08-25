@@ -181,44 +181,50 @@ export class JpycPaymentClient {
           false,
         );
       }
-      if (transaction.from.toLowerCase() !== expected.payerAddress.toLowerCase()) {
-        throw new JpycPaymentError(
-          "JPYC_PAYER_MISMATCH",
-          "transaction送信元が支払元walletと一致しません。",
-          false,
-        );
-      }
-      if (transaction.to?.toLowerCase() !== this.config.tokenAddress.toLowerCase()) {
-        throw new JpycPaymentError(
-          "JPYC_TOKEN_DESTINATION_MISMATCH",
-          "transaction送信先が設定済みJPYC contractと一致しません。",
-          false,
-        );
-      }
+      // 送信経路の判定:
+      // - 直接送金(EOA): transaction.to がJPYC contract。from・calldata・eventの
+      //   全一致を要求する(jpyc-payment.md §6.2)。
+      // - smart account(ERC-4337 / ZeroDev Kernel): transactionはbundler経由で
+      //   EntryPointへ届くため、fromはbundler・toはEntryPointになる。この場合は
+      //   支払元(payer=smart account)のJPYC Transfer eventの完全一致で検証する。
+      //   eventはtoken contract自身が発行するため、payer視点の偽装はできない。
+      const isDirectTransfer =
+        transaction.to?.toLowerCase() === this.config.tokenAddress.toLowerCase();
+      if (isDirectTransfer) {
+        if (
+          transaction.from.toLowerCase() !== expected.payerAddress.toLowerCase()
+        ) {
+          throw new JpycPaymentError(
+            "JPYC_PAYER_MISMATCH",
+            "transaction送信元が支払元walletと一致しません。",
+            false,
+          );
+        }
 
-      let decoded;
-      try {
-        decoded = decodeFunctionData({ abi: jpycAbi, data: transaction.input });
-      } catch (error) {
-        throw new JpycPaymentError(
-          "JPYC_CALLDATA_INVALID",
-          "transaction inputをJPYC transferとして解釈できません。",
-          false,
-          error,
-        );
-      }
-      const [recipient, amount] = decoded.args ?? [];
-      if (
-        decoded.functionName !== "transfer" ||
-        typeof recipient !== "string" ||
-        recipient.toLowerCase() !== expected.payeeAddress.toLowerCase() ||
-        amount !== expected.amountAtomic
-      ) {
-        throw new JpycPaymentError(
-          "JPYC_TRANSFER_INPUT_MISMATCH",
-          "JPYC transferの受取先または金額がpayment intentと一致しません。",
-          false,
-        );
+        let decoded;
+        try {
+          decoded = decodeFunctionData({ abi: jpycAbi, data: transaction.input });
+        } catch (error) {
+          throw new JpycPaymentError(
+            "JPYC_CALLDATA_INVALID",
+            "transaction inputをJPYC transferとして解釈できません。",
+            false,
+            error,
+          );
+        }
+        const [recipient, amount] = decoded.args ?? [];
+        if (
+          decoded.functionName !== "transfer" ||
+          typeof recipient !== "string" ||
+          recipient.toLowerCase() !== expected.payeeAddress.toLowerCase() ||
+          amount !== expected.amountAtomic
+        ) {
+          throw new JpycPaymentError(
+            "JPYC_TRANSFER_INPUT_MISMATCH",
+            "JPYC transferの受取先または金額がpayment intentと一致しません。",
+            false,
+          );
+        }
       }
 
       const transferEventFound = receipt.logs.some((log) => {

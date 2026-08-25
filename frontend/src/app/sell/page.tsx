@@ -1,0 +1,567 @@
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { CheckCircle2, ImagePlus, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
+import { toast } from "sonner";
+import { useAuth } from "@/components/auth/auth-provider";
+import { StatusStepper, type Step } from "@/components/status-stepper";
+import { TrustBadge } from "@/components/trust-badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
+import { ApiError, backendUrl } from "@/lib/api";
+import {
+  uploadCardImage,
+  type CardImageKind,
+  type UploadedCardImage,
+} from "@/lib/api/card-images";
+import {
+  attachPsaVerification,
+  createCard,
+  createListing,
+  verifyPsaCert,
+  type CardDetail,
+  type PsaVerificationResult,
+} from "@/lib/api/listings";
+import { getMe } from "@/lib/api/me";
+
+type WizardStep = 1 | 2 | 3 | 4;
+
+const IMAGE_SLOTS: { kind: CardImageKind; label: string; required: boolean }[] =
+  [
+    { kind: "front", label: "表面", required: true },
+    { kind: "back", label: "裏面", required: true },
+    { kind: "label", label: "ラベル拡大", required: false },
+    { kind: "corner_top_left", label: "四隅(左上)", required: false },
+  ];
+
+function wizardSteps(current: WizardStep): Step[] {
+  const defs = [
+    { key: "info", label: "カード情報" },
+    { key: "images", label: "画像" },
+    { key: "verify", label: "検証" },
+    { key: "confirm", label: "確認" },
+  ];
+  return defs.map((def, index) => ({
+    ...def,
+    state:
+      index + 1 < current ? "done" : index + 1 === current ? "active" : "waiting",
+  }));
+}
+
+export default function SellPage() {
+  const router = useRouter();
+  const { session, isSignedIn, isBusy, login } = useAuth();
+  const [step, setStep] = useState<WizardStep>(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Step1
+  const [name, setName] = useState("");
+  const [series, setSeries] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [grade, setGrade] = useState("");
+  const [hasPsa, setHasPsa] = useState<boolean | null>(null);
+  const [psaCertNumber, setPsaCertNumber] = useState("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [price, setPrice] = useState("");
+  const [card, setCard] = useState<CardDetail | null>(null);
+
+  // Step2
+  const [uploadedImages, setUploadedImages] = useState<
+    Partial<Record<CardImageKind, UploadedCardImage>>
+  >({});
+  const [uploadingKind, setUploadingKind] = useState<CardImageKind | null>(
+    null,
+  );
+
+  // Step3
+  const [psaResult, setPsaResult] = useState<PsaVerificationResult | null>(
+    null,
+  );
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  const meQuery = useQuery({
+    queryKey: ["me", session?.token],
+    queryFn: () => getMe(session!.token),
+    enabled: Boolean(session),
+  });
+
+  if (!isSignedIn) {
+    return (
+      <main className="mx-auto max-w-3xl px-4 py-16 text-center">
+        <h1 className="text-2xl font-bold">出品する</h1>
+        <p className="mt-3 text-muted-foreground">出品にはログインが必要です。</p>
+        <Button className="mt-6" onClick={() => void login()} disabled={isBusy}>
+          {isBusy ? "ログイン中…" : "ログイン"}
+        </Button>
+      </main>
+    );
+  }
+
+  if (meQuery.isPending) {
+    return (
+      <main className="mx-auto max-w-3xl px-4 py-10">
+        <Skeleton className="h-64 w-full" />
+      </main>
+    );
+  }
+
+  if (meQuery.data && !meQuery.data.isSellingAllowed) {
+    return (
+      <main className="mx-auto max-w-3xl px-4 py-16 text-center">
+        <h1 className="text-2xl font-bold">出品する</h1>
+        <Alert className="mx-auto mt-6 max-w-md text-left">
+          <AlertTitle>本人確認の完了後に出品できます</AlertTitle>
+          <AlertDescription>
+            Trustcaは出品前に販売者の本人確認(eKYC)を行う、事前審査型のマーケットプレイスです。
+          </AlertDescription>
+        </Alert>
+        <Button className="mt-6" asChild>
+          <Link href="/mypage/seller">本人確認へ進む</Link>
+        </Button>
+      </main>
+    );
+  }
+
+  async function submitStep1() {
+    if (!name.trim() || !title.trim() || !price.trim() || hasPsa === null) {
+      toast.error("必須項目(カード名・タイトル・価格・PSA鑑定の有無)を入力してください");
+      return;
+    }
+    if (hasPsa && !/^[0-9]{1,32}$/.test(psaCertNumber.trim())) {
+      toast.error("PSA証明書番号は1〜32桁の数字で入力してください");
+      return;
+    }
+    if (!/^[0-9]+$/.test(price.trim()) || BigInt(price.trim()) <= BigInt(0)) {
+      toast.error("価格は1以上の整数(JPYC)で入力してください");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const created =
+        card ??
+        (await createCard(session!.token, {
+          name: name.trim(),
+          series: series.trim() || undefined,
+          cardNumber: cardNumber.trim() || undefined,
+          grade: grade.trim() || undefined,
+          psaCertNumber: hasPsa ? psaCertNumber.trim() : undefined,
+        }));
+      setCard(created);
+      setStep(2);
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError ? error.message : "カードを登録できませんでした",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleUpload(kind: CardImageKind, file: File) {
+    if (!card) return;
+    setUploadingKind(kind);
+    try {
+      const uploaded = await uploadCardImage({
+        backendUrl,
+        token: session!.token,
+        cardId: card.id,
+        imageKind: kind,
+        uploadContext: "listing",
+        file,
+      });
+      setUploadedImages((current) => ({ ...current, [kind]: uploaded }));
+      toast.success("画像をアップロードしました");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "アップロードに失敗しました",
+      );
+    } finally {
+      setUploadingKind(null);
+    }
+  }
+
+  async function runPsaVerification() {
+    if (!card) return;
+    setIsVerifying(true);
+    try {
+      const result = await verifyPsaCert(card.psaCertNumber!);
+      setPsaResult(result);
+      if (result.verificationId) {
+        await attachPsaVerification(
+          session!.token,
+          card.id,
+          result.verificationId,
+        );
+      }
+      if (result.status === "verified") {
+        toast.success("PSA登録情報を確認しました");
+      } else {
+        toast.warning("自動確認ができなかったため、審査扱いになります");
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError
+          ? error.message
+          : "PSA照会に失敗しました。時間をおいて再度お試しください",
+      );
+    } finally {
+      setIsVerifying(false);
+    }
+  }
+
+  async function submitListing() {
+    if (!card) return;
+    setIsSubmitting(true);
+    try {
+      const listing = await createListing(session!.token, {
+        cardId: card.id,
+        title: title.trim(),
+        description: description.trim() || null,
+        priceMinor: price.trim(),
+      });
+      toast.success("出品を公開しました");
+      router.push(`/listings/${listing.id}`);
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError ? error.message : "出品に失敗しました",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  const requiredImagesUploaded = IMAGE_SLOTS.filter(
+    (slot) => slot.required,
+  ).every((slot) => uploadedImages[slot.kind]);
+
+  return (
+    <main className="mx-auto max-w-3xl space-y-6 px-4 py-10">
+      <h1 className="text-2xl font-bold">出品する</h1>
+      <StatusStepper steps={wizardSteps(step)} />
+
+      {step === 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>カード情報</CardTitle>
+            <CardDescription>
+              出品するカードの情報を入力してください。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="cardName">カード名 *</Label>
+                <Input
+                  id="cardName"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="例: リザードン"
+                  disabled={Boolean(card)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="series">シリーズ</Label>
+                <Input
+                  id="series"
+                  value={series}
+                  onChange={(e) => setSeries(e.target.value)}
+                  placeholder="例: 基本拡張パック"
+                  disabled={Boolean(card)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cardNumber">カード番号</Label>
+                <Input
+                  id="cardNumber"
+                  value={cardNumber}
+                  onChange={(e) => setCardNumber(e.target.value)}
+                  placeholder="例: 006/102"
+                  disabled={Boolean(card)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="grade">グレード表記</Label>
+                <Input
+                  id="grade"
+                  value={grade}
+                  onChange={(e) => setGrade(e.target.value)}
+                  placeholder="例: 10"
+                  disabled={Boolean(card)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>PSA鑑定 *</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={hasPsa === true ? "default" : "outline"}
+                  onClick={() => setHasPsa(true)}
+                  disabled={Boolean(card)}
+                >
+                  PSA鑑定済み
+                </Button>
+                <Button
+                  type="button"
+                  variant={hasPsa === false ? "default" : "outline"}
+                  onClick={() => setHasPsa(false)}
+                  disabled={Boolean(card)}
+                >
+                  未鑑定
+                </Button>
+              </div>
+            </div>
+            {hasPsa && (
+              <div className="space-y-2">
+                <Label htmlFor="psaCert">PSA証明書番号 *</Label>
+                <Input
+                  id="psaCert"
+                  value={psaCertNumber}
+                  onChange={(e) => setPsaCertNumber(e.target.value)}
+                  placeholder="例: 12345678"
+                  className="font-mono"
+                  disabled={Boolean(card)}
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="title">出品タイトル *</Label>
+              <Input
+                id="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="例: リザードン HOLO 1999 PSA10"
+                maxLength={255}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="price">価格(JPYC) *</Label>
+              <Input
+                id="price"
+                inputMode="numeric"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder="例: 50000"
+              />
+              <p className="text-xs text-muted-foreground">
+                取引実績に応じて出品可能な上限金額が拡大されます。
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="description">説明</Label>
+              <Textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={4}
+                placeholder="カードの状態や購入経緯などを記載してください"
+              />
+            </div>
+
+            <Button onClick={() => void submitStep1()} disabled={isSubmitting}>
+              {isSubmitting ? "登録中…" : "次へ(画像アップロード)"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 2 && card && (
+        <Card>
+          <CardHeader>
+            <CardTitle>画像アップロード</CardTitle>
+            <CardDescription>
+              表面・裏面は必須です。画像は非公開ストレージへ保存されます。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {IMAGE_SLOTS.map((slot) => {
+                const uploaded = uploadedImages[slot.kind];
+                return (
+                  <div key={slot.kind} className="rounded-lg border p-4">
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium">
+                        {slot.label}
+                        {slot.required && (
+                          <span className="ml-1 text-destructive">*</span>
+                        )}
+                      </p>
+                      {uploaded && (
+                        <CheckCircle2
+                          className="size-5 text-success"
+                          aria-hidden
+                        />
+                      )}
+                    </div>
+                    <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed py-6 text-sm text-muted-foreground hover:bg-accent">
+                      {uploadingKind === slot.kind ? (
+                        <Loader2 className="size-4 animate-spin" aria-hidden />
+                      ) : (
+                        <ImagePlus className="size-4" aria-hidden />
+                      )}
+                      {uploaded ? "画像を差し替える" : "画像を選択"}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        disabled={uploadingKind !== null}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) void handleUpload(slot.kind, file);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setStep(1)}>
+                戻る
+              </Button>
+              <Button
+                onClick={() => setStep(3)}
+                disabled={!requiredImagesUploaded}
+              >
+                次へ(検証)
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 3 && card && (
+        <Card>
+          <CardHeader>
+            <CardTitle>カード検証</CardTitle>
+            <CardDescription>
+              {card.psaCertNumber
+                ? "PSA証明書番号の登録情報を照会し、入力内容と照合します。"
+                : "アップロードされた画像を解析し、入力内容との整合を確認します。"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {card.psaCertNumber ? (
+              <>
+                <p className="text-sm">
+                  証明書番号:{" "}
+                  <span className="font-mono">{card.psaCertNumber}</span>
+                </p>
+                {psaResult ? (
+                  <div className="rounded-lg border p-4">
+                    {psaResult.status === "verified" && psaResult.card ? (
+                      <div className="space-y-2">
+                        <TrustBadge signal="psa_verified" />
+                        <dl className="grid grid-cols-2 gap-2 text-sm">
+                          <dt className="text-muted-foreground">カード名</dt>
+                          <dd>{psaResult.card.subject ?? "—"}</dd>
+                          <dt className="text-muted-foreground">年</dt>
+                          <dd>{psaResult.card.year ?? "—"}</dd>
+                          <dt className="text-muted-foreground">グレード</dt>
+                          <dd>{psaResult.card.cardGrade ?? "—"}</dd>
+                          <dt className="text-muted-foreground">バリエーション</dt>
+                          <dd>{psaResult.card.variety ?? "—"}</dd>
+                        </dl>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <TrustBadge signal="needs_review" />
+                        <p className="text-sm text-muted-foreground">
+                          自動確認ができませんでした。このまま出品した場合、審査扱いとなります。
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <Button
+                    onClick={() => void runPsaVerification()}
+                    disabled={isVerifying}
+                  >
+                    {isVerifying ? "照会中…" : "PSA登録情報を照会する"}
+                  </Button>
+                )}
+              </>
+            ) : (
+              <Alert>
+                <AlertTitle>画像解析による確認</AlertTitle>
+                <AlertDescription>
+                  アップロードされた画像は出品後に解析され、結果は商品ページの信頼シグナルとして表示されます。
+                </AlertDescription>
+              </Alert>
+            )}
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setStep(2)}>
+                戻る
+              </Button>
+              <Button
+                onClick={() => setStep(4)}
+                disabled={Boolean(card.psaCertNumber) && !psaResult}
+              >
+                次へ(確認)
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 4 && card && (
+        <Card>
+          <CardHeader>
+            <CardTitle>出品内容の確認</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <dl className="grid grid-cols-3 gap-2 text-sm">
+              <dt className="text-muted-foreground">タイトル</dt>
+              <dd className="col-span-2">{title}</dd>
+              <dt className="text-muted-foreground">カード名</dt>
+              <dd className="col-span-2">{card.name}</dd>
+              <dt className="text-muted-foreground">価格</dt>
+              <dd className="col-span-2 font-semibold tabular-nums">
+                {BigInt(price || "0").toLocaleString("ja-JP")} JPYC
+              </dd>
+              <dt className="text-muted-foreground">PSA</dt>
+              <dd className="col-span-2">
+                {card.psaCertNumber
+                  ? `証明書番号 ${card.psaCertNumber}(${psaResult?.status === "verified" ? "登録情報確認済み" : "審査扱い"})`
+                  : "未鑑定(画像解析)"}
+              </dd>
+              <dt className="text-muted-foreground">画像</dt>
+              <dd className="col-span-2">
+                {Object.keys(uploadedImages).length}枚
+              </dd>
+            </dl>
+            <p className="text-xs text-muted-foreground">
+              出品手数料は現在無料です。公開後、購入が入ると取引がロックされます。
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setStep(3)}>
+                戻る
+              </Button>
+              <Button onClick={() => void submitListing()} disabled={isSubmitting}>
+                {isSubmitting ? "公開中…" : "出品を公開する"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </main>
+  );
+}

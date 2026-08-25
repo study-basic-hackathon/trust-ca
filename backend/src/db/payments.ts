@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { appendAuditAnchorOnClient } from "./onchain-outbox.js";
 import type { Pool, PoolClient } from "pg";
 import type { Address, Hash } from "viem";
 import type { WalletSession } from "../services/session-token.js";
@@ -430,6 +431,11 @@ export async function markPaymentConfirmed(
     paymentIntentId: string;
     workerId: string;
     blockNumber: bigint;
+    /** 有効時、order.paidの監査イベント+outboxを同一transactionで作成する */
+    auditAnchor?: {
+      chainId: number;
+      contractAddress: `0x${string}`;
+    };
   },
 ): Promise<void> {
   await withTransaction(pool, async (client) => {
@@ -469,6 +475,24 @@ export async function markPaymentConfirmed(
     );
     if (listingResult.rowCount !== 1) {
       throw new Error("出品をsoldへ更新できませんでした。");
+    }
+    if (input.auditAnchor) {
+      const orderId = String(paymentResult.rows[0].order_id);
+      await appendAuditAnchorOnClient(client, {
+        idempotencyKey: `order.paid:${orderId}`,
+        aggregateType: "order",
+        aggregateId: orderId,
+        eventType: "order.paid",
+        eventVersion: 1,
+        occurredAt: new Date(),
+        payload: {
+          orderId,
+          status: "paid",
+          paymentIntentId: input.paymentIntentId,
+        },
+        chainId: input.auditAnchor.chainId,
+        contractAddress: input.auditAnchor.contractAddress,
+      });
     }
   });
 }

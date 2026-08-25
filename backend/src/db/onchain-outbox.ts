@@ -92,9 +92,22 @@ export async function createAuditAnchor(
   pool: Pool,
   input: CreateAuditAnchorInput,
 ): Promise<AuditAnchorRecord> {
-  const { canonicalJson, sha256 } = sha256CanonicalJson(input.payload);
+  return withTransaction(pool, (client) =>
+    appendAuditAnchorOnClient(client, input),
+  );
+}
 
-  return withTransaction(pool, async (client) => {
+/**
+ * 業務transaction内で監査イベントとoutboxを追加するためのclient版。
+ * 決済確定・発送・受領確認など、業務状態遷移と同一transactionで呼ぶ
+ * (async-onchain-write.md §5)。
+ */
+export async function appendAuditAnchorOnClient(
+  client: PoolClient,
+  input: CreateAuditAnchorInput,
+): Promise<AuditAnchorRecord> {
+  const { canonicalJson, sha256 } = sha256CanonicalJson(input.payload);
+  {
     const auditEventId = randomUUID();
     const inserted = await client.query(
       `INSERT INTO audit_events (
@@ -167,7 +180,7 @@ export async function createAuditAnchor(
       throw new IdempotencyConflictError();
     }
     return toRecord(row, created);
-  });
+  }
 }
 
 export async function getAuditAnchor(

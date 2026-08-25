@@ -67,7 +67,7 @@ pnpm vitest run --coverage   # src/lib/**に80%の閾値を強制
 
 **Docker Compose内とスタンドアロン開発でのネットワーキングの違い**: コンテナ同士はComposeのサービス名で到達する(`localhost`ではない) — backendはPostgresを`db:5432`で、frontendのSSR fetchはbackendを`http://backend:8080`で呼ぶ。各アプリの`.env.example`にスタンドアロン開発時のフォールバック値(`localhost`)とCompose経由での注入値の違いをコメントしてある。`backend/src/index.ts`は他コンテナから到達できるよう、loopbackのデフォルトではなく明示的に`0.0.0.0`にバインドしている。
 
-**`poc/ekyc/`は稼働中のコードではなく参照実装であり、`backend/`への移植はまだ行われていない**(`backend/`は現状`/healthz`ルートのみ)。`poc/ekyc/`に新機能を追加するのではなく、そこからロジックを`backend/`へ移植すること。差分・移行計画は[docs/design/system-architecture.md §4](docs/design/system-architecture.md)を参照。
+**`poc/ekyc/`は稼働中のコードではなく参照実装である。**eKYC業務ロジックは`backend/src/services/didit/`へ移植済みで、`backend/`にはeKYC・PSA照会・Vision解析・SIWE/JPYC決済・監査anchorのAPIが実装されている(一覧は[docs/design/api-catalog.md §6](docs/design/api-catalog.md)を参照)。`poc/ekyc/`に新機能を追加しないこと。差分・移行計画は[docs/design/system-architecture.md §4](docs/design/system-architecture.md)を参照。
 
 **eKYC設計から引き継ぐべき設計原則**([docs/design/ekyc-design.md §2.1](docs/design/ekyc-design.md)・[docs/design/system-architecture.md §8](docs/design/system-architecture.md))。新しいbackend機能にも一般化して適用する: サーバー間通信の結果のみを信用する/必要以上のPIIを保存しない/未知・未対応のステータスはフェイルセーフ(閉じる)側に倒す/1つのチェック通過で無制限の信頼を与えない。各原則の詳細は上記リンク先を参照。
 

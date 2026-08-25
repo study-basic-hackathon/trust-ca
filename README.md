@@ -37,7 +37,7 @@
 └── README.md            本ファイル
 ```
 
-`poc/ekyc/`は最初のフェーズで作った検証用実装で、以後は`frontend/`(Next.js)と`backend/`(Hono)に分離した構成で開発を進める。`poc/ekyc/src/lib/didit/`配下の業務ロジックは、`backend/`への移植元として参照専用で残している(まだ移植は未着手)。
+`poc/ekyc/`は最初のフェーズで作った検証用実装で、以後は`frontend/`(Next.js)と`backend/`(Hono)に分離した構成で開発を進める。`poc/ekyc/src/lib/didit/`配下の業務ロジックは`backend/src/services/didit/`へ移植済みで、`poc/ekyc/`は参照専用として残している。
 
 ---
 

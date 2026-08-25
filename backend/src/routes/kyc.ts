@@ -95,7 +95,7 @@ export function createKycRoute(dependencies: Dependencies): Hono {
         dependencies.diditConfig,
         {
           sellerId,
-          callbackUrl: `${dependencies.frontendOrigin}/sellers/callback?sellerId=${encodeURIComponent(sellerId)}`,
+          callbackUrl: `${dependencies.frontendOrigin}/mypage/seller/callback`,
         },
       );
       return c.json(

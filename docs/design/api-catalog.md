@@ -489,13 +489,23 @@ Cloud RunからCloud SQL for PostgreSQLへはCloud SQL Node.js Connectorまた�
 
 | Method | Path | 用途 | 認可 | 状態 |
 |---|---|---|---|---|
-| `POST` | `/api/v1/listings` | 審査済みカードを出品 | eKYC承認済み販売者 | 未実装 |
-| `GET` | `/api/v1/listings` | 公開出品一覧 | 公開 | 未実装 |
-| `GET` | `/api/v1/listings/{listingId}` | 出品詳細と信頼シグナル取得 | 公開 | 未実装 |
-| `PATCH` | `/api/v1/listings/{listingId}` | 出品情報更新 | 出品者 | 未実装 |
-| `POST` | `/api/v1/listings/{listingId}/close` | 出品停止 | 出品者/運営者 | 未実装 |
-| `POST` | `/api/v1/orders` | 注文作成、価格をsnapshot保存 | 購入者 | 未実装 |
-| `GET` | `/api/v1/orders/{orderId}` | 注文・決済・監査状態取得 | 取引当事者/運営者 | 未実装 |
+| `POST` | `/api/v1/cards` | カード個体の登録(出品ウィザードStep1) | eKYC承認済み販売者 | 実装済み(spec 020) |
+| `POST` | `/api/v1/cards/{cardId}/psa-attachment` | PSA照会結果のカード紐付け | カード所有者 | 実装済み(spec 020) |
+| `GET` | `/api/v1/me` | ログイン中ユーザーの統合ビュー(user/wallet/販売者/eKYC) | wallet session | 実装済み(spec 020) |
+| `POST` | `/api/v1/listings` | 審査済みカードを出品 | eKYC承認済み販売者 | 実装済み(spec 020) |
+| `GET` | `/api/v1/listings` | 公開出品一覧(search/psaOnly/cursor) | 公開 | 実装済み(spec 020) |
+| `GET` | `/api/v1/listings/mine` | 自分の出品一覧 | 販売者 | 実装済み(spec 020) |
+| `GET` | `/api/v1/listings/{listingId}` | 出品詳細と信頼シグナル・画像閲覧URL取得 | 公開 | 実装済み(spec 020) |
+| `POST` | `/api/v1/listings/{listingId}/close` | 出品停止 | 出品者(運営者は/admin側) | 実装済み(spec 020) |
+| `POST` | `/api/v1/orders` | 注文作成(listing予約+価格snapshot+配送先保存) | 購入者 | 実装済み(spec 020) |
+| `GET` | `/api/v1/orders` | 自分の取引一覧(`role=buyer\|seller`) | 取引当事者 | 実装済み(spec 020) |
+| `GET` | `/api/v1/orders/{orderId}` | 注文・決済・発送・監査状態取得 | 取引当事者(第三者は404) | 実装済み(spec 020) |
+| `POST` | `/api/v1/orders/{orderId}/shipment` | 発送登録(paid→shipped) | 販売者 | 実装済み(spec 020) |
+| `POST` | `/api/v1/orders/{orderId}/delivery-confirmation` | 受領確認(shipped→completed) | 購入者 | 実装済み(spec 020) |
+| `GET` | `/api/v1/admin/listings`(+`/close`) | 運営者の出品管理・強制停止 | `ADMIN_API_TOKEN` | 実装済み(spec 020) |
+| `GET` | `/api/v1/admin/orders` | 運営者の取引一覧 | `ADMIN_API_TOKEN` | 実装済み(spec 020) |
+
+`PATCH /api/v1/listings/{listingId}`(出品情報の編集)は未実装。編集が必要な場合は停止して再出品する運用とし、必要になった時点で追加する。発送フローの契約詳細は[shipping-flow.md](./shipping-flow.md)を参照。
 
 出品作成時は`approved`の存在だけでなく、金額上限、出品数上限、PSA/画像検証状態をbackendで再確認する。frontendが送った価格以外に、DB上のlisting価格を注文へsnapshotする。
 

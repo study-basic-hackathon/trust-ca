@@ -1,0 +1,36 @@
+# frontend本番イメージのビルド(Cloud Build)
+# NEXT_PUBLIC_* はビルド時に焼き込まれるため、substitutionで受け取る。
+substitutions:
+  _BACKEND_URL: https://REPLACE.run.app
+  _WEB3AUTH_CLIENT_ID: PLACEHOLDER_WEB3AUTH_CLIENT_ID
+  _CHAIN_ID: "137"
+  _CHAIN_NAME: Polygon
+  _RPC_URL: https://polygon-rpc.com
+  _EXPLORER_URL: https://polygonscan.com
+  _ZERODEV_PROJECT_ID: ""
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - Dockerfile.prod
+      - --build-arg
+      - NEXT_PUBLIC_BACKEND_URL=${_BACKEND_URL}
+      - --build-arg
+      - NEXT_PUBLIC_WEB3AUTH_CLIENT_ID=${_WEB3AUTH_CLIENT_ID}
+      - --build-arg
+      - NEXT_PUBLIC_PAYMENT_CHAIN_ID=${_CHAIN_ID}
+      - --build-arg
+      - NEXT_PUBLIC_PAYMENT_CHAIN_NAME=${_CHAIN_NAME}
+      - --build-arg
+      - NEXT_PUBLIC_PAYMENT_RPC_URL=${_RPC_URL}
+      - --build-arg
+      - NEXT_PUBLIC_PAYMENT_EXPLORER_URL=${_EXPLORER_URL}
+      - --build-arg
+      - NEXT_PUBLIC_ZERODEV_PROJECT_ID=${_ZERODEV_PROJECT_ID}
+      - -t
+      - asia-northeast1-docker.pkg.dev/trust-ca-506116/trustca/frontend:v1
+      - .
+images:
+  - asia-northeast1-docker.pkg.dev/trust-ca-506116/trustca/frontend:v1

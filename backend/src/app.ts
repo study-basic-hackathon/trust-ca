@@ -10,13 +10,18 @@ import {
   getVisionConfig,
 } from "./env.js";
 import { createFixedWindowRateLimiter } from "./middleware/rate-limit.js";
+import { createAdminMarketplaceRoute } from "./routes/admin-marketplace.js";
 import { createAdminVerificationRoute } from "./routes/admin-verifications.js";
 import { createCardImageAnalysesRoute } from "./routes/card-image-analyses.js";
 import { createCardImagesRoute } from "./routes/card-images.js";
 import { createCardImageUploadsRoute } from "./routes/card-image-uploads.js";
 import { healthRoute } from "./routes/health.js";
+import { createCardsRoute } from "./routes/cards.js";
 import { createKycRoute } from "./routes/kyc.js";
+import { createListingsRoute } from "./routes/listings.js";
+import { createMeRoute } from "./routes/me.js";
 import { createOnchainAnchorRoute } from "./routes/onchain-anchors.js";
+import { createOrdersRoute } from "./routes/orders.js";
 import { createPaymentRoute } from "./routes/payments.js";
 import { createPsaVerificationRoute } from "./routes/psa-verifications.js";
 import { createSellerRoute } from "./routes/sellers.js";
@@ -46,18 +51,30 @@ app.route(
     config: psaConfig,
     service: psaService,
     rateLimiter: createFixedWindowRateLimiter(psaConfig.requestsPerMinute),
+    pool,
   }),
 );
-app.route(
-  "/",
-  createOnchainAnchorRoute({ pool, config: getOnchainConfig() }),
-);
+const onchainConfig = getOnchainConfig();
+app.route("/", createOnchainAnchorRoute({ pool, config: onchainConfig }));
 const paymentConfig = getPaymentConfig();
 app.route("/", createWalletAuthRoute({ pool, config: paymentConfig }));
 app.route("/", createPaymentRoute({ pool, config: paymentConfig }));
 
+app.route(
+  "/",
+  createCardsRoute({ pool, walletConfig: paymentConfig }),
+);
+app.route(
+  "/",
+  createOrdersRoute({ pool, walletConfig: paymentConfig, onchainConfig }),
+);
+
 const diditConfig = getDiditConfig();
-app.route("/", createSellerRoute({ pool }));
+app.route("/", createSellerRoute({ pool, walletConfig: paymentConfig }));
+app.route(
+  "/",
+  createMeRoute({ pool, walletConfig: paymentConfig, diditConfig }),
+);
 app.route(
   "/",
   createKycRoute({
@@ -68,12 +85,15 @@ app.route(
   }),
 );
 app.route("/", createWebhookRoute({ pool, diditConfig }));
-app.route(
-  "/",
-  createAdminVerificationRoute({ pool, adminConfig: getAdminConfig() }),
-);
+const adminConfig = getAdminConfig();
+app.route("/", createAdminVerificationRoute({ pool, adminConfig }));
+app.route("/", createAdminMarketplaceRoute({ pool, adminConfig }));
 
 const visionConfig = getVisionConfig();
+app.route(
+  "/",
+  createListingsRoute({ pool, walletConfig: paymentConfig, visionConfig }),
+);
 const visionService = new VisionAnnotationService({
   apiBaseUrl: visionConfig.apiBaseUrl,
   timeoutMs: visionConfig.timeoutMs,

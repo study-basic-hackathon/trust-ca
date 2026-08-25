@@ -1,0 +1,39 @@
+# 本番用(Cloud Run)。NEXT_PUBLIC_* はビルド時に焼き込まれるため
+# build-arg で受け取る。開発用Dockerfileとは分離している。
+
+FROM node:24-alpine AS build
+WORKDIR /app
+RUN corepack enable
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+
+ARG NEXT_PUBLIC_BACKEND_URL
+ARG NEXT_PUBLIC_WEB3AUTH_CLIENT_ID
+ARG NEXT_PUBLIC_PAYMENT_CHAIN_ID=137
+ARG NEXT_PUBLIC_PAYMENT_CHAIN_NAME=Polygon
+ARG NEXT_PUBLIC_PAYMENT_RPC_URL=https://polygon-rpc.com
+ARG NEXT_PUBLIC_PAYMENT_EXPLORER_URL=https://polygonscan.com
+ARG NEXT_PUBLIC_ZERODEV_PROJECT_ID
+ENV NEXT_PUBLIC_ZERODEV_PROJECT_ID=$NEXT_PUBLIC_ZERODEV_PROJECT_ID \
+    NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL \
+    NEXT_PUBLIC_WEB3AUTH_CLIENT_ID=$NEXT_PUBLIC_WEB3AUTH_CLIENT_ID \
+    NEXT_PUBLIC_PAYMENT_CHAIN_ID=$NEXT_PUBLIC_PAYMENT_CHAIN_ID \
+    NEXT_PUBLIC_PAYMENT_CHAIN_NAME=$NEXT_PUBLIC_PAYMENT_CHAIN_NAME \
+    NEXT_PUBLIC_PAYMENT_RPC_URL=$NEXT_PUBLIC_PAYMENT_RPC_URL \
+    NEXT_PUBLIC_PAYMENT_EXPLORER_URL=$NEXT_PUBLIC_PAYMENT_EXPLORER_URL
+
+COPY . .
+RUN pnpm build
+
+FROM node:24-alpine AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+RUN corepack enable
+COPY --from=build /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile --prod
+COPY --from=build /app/.next ./.next
+COPY --from=build /app/next.config.* ./
+
+EXPOSE 3000
+ENV PORT=3000
+CMD ["pnpm", "start"]
