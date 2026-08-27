@@ -1,10 +1,10 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, ImagePlus, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth/auth-provider";
 import { StatusStepper, type Step } from "@/components/status-stepper";
@@ -18,6 +18,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -32,6 +40,8 @@ import {
   attachPsaVerification,
   createCard,
   createListing,
+  discardCard,
+  fetchCardDraft,
   issuePossessionChallenge,
   verifyPsaCert,
   type CardDetail,
@@ -118,11 +128,15 @@ function wizardSteps(current: WizardStep): Step[] {
   }));
 }
 
-export default function SellPage() {
+function SellWizard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const resumeCardId = searchParams.get("cardId");
   const { session, isSignedIn, isBusy, login } = useAuth();
   const [step, setStep] = useState<WizardStep>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
+  const [isDiscarding, setIsDiscarding] = useState(false);
 
   // Step1
   const [name, setName] = useState("");
@@ -165,12 +179,76 @@ export default function SellPage() {
   // 進捗の復元はマウント後に行う(SSRのhydration不一致を避けるため初期値はデフォルト)。
   // 復元完了までは保存を止め、デフォルト値で上書きしないようにする。
   const [hasRestored, setHasRestored] = useState(false);
+  const didFetchDraftRef = useRef(false);
   useEffect(() => {
     // マウント後にsessionStorageから復元する(初期renderで読むとSSRのhydrationが
     // 不一致になるため)。この用途ではeffect内setStateが正当なので規則を無効化する。
     /* eslint-disable react-hooks/set-state-in-effect */
     const snap = loadWizard();
-    if (snap) {
+
+    // 一覧の「作成中」から?cardId=付きで開かれた場合、同じカードの
+    // 続きであればsessionStorageのスナップショットをそのまま使う
+    // (Step5で入力中のタイトル・価格をreloadで失わないため)。
+    // 別カード・スナップショット無しの場合のみbackendから正が取れる状態を取得する。
+    if (resumeCardId && snap?.card?.id === resumeCardId) {
+      setStep(snap.step);
+      setName(snap.name);
+      setSeries(snap.series);
+      setCardNumber(snap.cardNumber);
+      setGrade(snap.grade);
+      setHasPsa(snap.hasPsa);
+      setPsaCertNumber(snap.psaCertNumber);
+      setTitle(snap.title);
+      setDescription(snap.description);
+      setPrice(snap.price);
+      setCard(snap.card);
+      setUploadedImages(snap.uploadedImages ?? {});
+      setIsPossessionUploaded(snap.isPossessionUploaded);
+      setPsaResult(snap.psaResult);
+      setHasRestored(true);
+      return;
+    }
+
+    if (resumeCardId && session && !didFetchDraftRef.current) {
+      didFetchDraftRef.current = true;
+      void (async () => {
+        try {
+          const draft = await fetchCardDraft(session.token, resumeCardId);
+          const c = draft.card;
+          setName(c.name);
+          setSeries(c.series ?? "");
+          setCardNumber(c.cardNumber ?? "");
+          setGrade(c.grade ?? "");
+          setHasPsa(Boolean(c.psaCertNumber));
+          setPsaCertNumber(c.psaCertNumber ?? "");
+          setCard(c);
+          const images: Partial<Record<CardImageKind, UploadedCardImage>> = {};
+          for (const image of draft.images) {
+            if (image.imageKind === "possession") continue;
+            images[image.imageKind] = image;
+          }
+          setUploadedImages(images);
+          setIsPossessionUploaded(draft.hasPossessionProof);
+          // タイトル・価格はStep1でのみ入力する項目でbackendに保存されないため
+          // (このネットワーク再取得の場合は必ず未入力)、以降のステップの完了状況に
+          // 関わらず常にStep1へ着地させる。名前欄等は既存カードとしてロックされる
+          // 一方、タイトル・価格欄は編集可能なままなので、ここで入力してから
+          // 「次へ」で進める(既に完了済みのステップは自動的に素通りできる)。
+          setStep(1);
+        } catch (error) {
+          toast.error(
+            error instanceof ApiError
+              ? error.message
+              : "出品の再開に失敗しました",
+          );
+        } finally {
+          setHasRestored(true);
+        }
+      })();
+      return;
+    }
+
+    if (!resumeCardId && snap) {
       setStep(snap.step);
       setName(snap.name);
       setSeries(snap.series);
@@ -188,7 +266,7 @@ export default function SellPage() {
     }
     setHasRestored(true);
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, []);
+  }, [resumeCardId, session]);
 
   useEffect(() => {
     if (!hasRestored) return;
@@ -432,13 +510,49 @@ export default function SellPage() {
     }
   }
 
+  async function discardWizard() {
+    if (!card) return;
+    setIsDiscarding(true);
+    try {
+      await discardCard(session!.token, card.id);
+      toast.success("入力内容を破棄しました");
+      setCard(null);
+      setStep(1);
+      setUploadedImages({});
+      setPreviews({});
+      setPossessionCode(null);
+      setIsPossessionUploaded(false);
+      setPsaResult(null);
+      setIsDiscardDialogOpen(false);
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError ? error.message : "破棄に失敗しました",
+      );
+    } finally {
+      setIsDiscarding(false);
+    }
+  }
+
   const requiredImagesUploaded = IMAGE_SLOTS.filter(
     (slot) => slot.required,
   ).every((slot) => uploadedImages[slot.kind]);
+  const psaAlreadyVerified = Boolean(card?.psaVerificationStatus);
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 py-10">
-      <h1 className="text-2xl font-bold">出品する</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold">出品する</h1>
+        {card && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsDiscardDialogOpen(true)}
+          >
+            破棄してやり直す
+          </Button>
+        )}
+      </div>
       <StatusStepper steps={wizardSteps(step)} />
 
       {step === 1 && (
@@ -758,6 +872,13 @@ export default function SellPage() {
                       </div>
                     )}
                   </div>
+                ) : psaAlreadyVerified ? (
+                  <div className="rounded-lg border p-4 space-y-2">
+                    <TrustBadge signal="psa_verified" />
+                    <p className="text-sm text-muted-foreground">
+                      この証明書番号は照会済みです。
+                    </p>
+                  </div>
                 ) : (
                   <Button
                     onClick={() => void runPsaVerification()}
@@ -781,7 +902,11 @@ export default function SellPage() {
               </Button>
               <Button
                 onClick={() => setStep(5)}
-                disabled={Boolean(card.psaCertNumber) && !psaResult}
+                disabled={
+                  Boolean(card.psaCertNumber) &&
+                  !psaResult &&
+                  !psaAlreadyVerified
+                }
               >
                 次へ(確認)
               </Button>
@@ -808,7 +933,11 @@ export default function SellPage() {
               <dt className="text-muted-foreground">PSA</dt>
               <dd className="col-span-2">
                 {card.psaCertNumber
-                  ? `証明書番号 ${card.psaCertNumber}(${psaResult?.status === "verified" ? "登録情報確認済み" : "審査扱い"})`
+                  ? `証明書番号 ${card.psaCertNumber}(${
+                      (psaResult ? psaResult.status === "verified" : psaAlreadyVerified)
+                        ? "登録情報確認済み"
+                        : "審査扱い"
+                    })`
                   : "未鑑定(画像解析)"}
               </dd>
               <dt className="text-muted-foreground">画像</dt>
@@ -830,6 +959,50 @@ export default function SellPage() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog
+        open={isDiscardDialogOpen}
+        onOpenChange={(open) => !isDiscarding && setIsDiscardDialogOpen(open)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>入力内容を破棄しますか?</DialogTitle>
+            <DialogDescription>
+              登録済みのカード情報・アップロード済みの画像は破棄され、元に戻せません。カード名などを修正して入力し直せます。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsDiscardDialogOpen(false)}
+              disabled={isDiscarding}
+            >
+              キャンセル
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void discardWizard()}
+              disabled={isDiscarding}
+            >
+              {isDiscarding ? "破棄中…" : "破棄する"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
+  );
+}
+
+export default function SellPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="mx-auto max-w-3xl px-4 py-10">
+          <Skeleton className="h-64 w-full" />
+        </main>
+      }
+    >
+      <SellWizard />
+    </Suspense>
   );
 }

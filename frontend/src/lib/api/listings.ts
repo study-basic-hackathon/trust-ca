@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import type { UploadedCardImage } from "@/lib/api/card-images";
 
 export type CardDetail = {
   id: string;
@@ -115,6 +116,44 @@ export function issuePossessionChallenge(
 ): Promise<{ code: string; expiresAt: string }> {
   return api(
     `/api/v1/cards/${encodeURIComponent(cardId)}/possession-challenges`,
+    { method: "POST" },
+    token,
+  );
+}
+
+export type CardDraftSummary = CardDetail & {
+  createdAt: string;
+  thumbnailUrl: string | null;
+};
+
+/** まだ出品(listings)に至っていない、出品ウィザード途中のカード一覧 */
+export function fetchCardDrafts(
+  token: string,
+): Promise<{ items: CardDraftSummary[] }> {
+  return api("/api/v1/cards/mine", {}, token);
+}
+
+export type CardDraftDetail = {
+  card: CardDetail & { createdAt: string };
+  images: (UploadedCardImage & { url: string | null })[];
+  hasPossessionProof: boolean;
+};
+
+/** 出品ウィザードの再開に必要な、カード・画像・所持確認状況をまとめて取得する */
+export function fetchCardDraft(
+  token: string,
+  cardId: string,
+): Promise<CardDraftDetail> {
+  return api(`/api/v1/cards/${encodeURIComponent(cardId)}`, {}, token);
+}
+
+/** 出品ウィザードの破棄。まだ出品していないカードのみ破棄できる */
+export function discardCard(
+  token: string,
+  cardId: string,
+): Promise<{ discarded: boolean }> {
+  return api(
+    `/api/v1/cards/${encodeURIComponent(cardId)}/discard`,
     { method: "POST" },
     token,
   );
