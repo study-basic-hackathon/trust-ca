@@ -179,8 +179,13 @@ function SellWizard() {
   // 進捗の復元はマウント後に行う(SSRのhydration不一致を避けるため初期値はデフォルト)。
   // 復元完了までは保存を止め、デフォルト値で上書きしないようにする。
   const [hasRestored, setHasRestored] = useState(false);
-  const didFetchDraftRef = useRef(false);
+  // 復元は各マウントにつき一度だけ行う。submitStep1/discardWizardが自ら
+  // ?cardIdをURLへ同期するため、それによるresumeCardIdの変化でこのeffectが
+  // 再実行されても復元処理をやり直さない(やり直すと入力済みの内容を
+  // 上書きしてしまう)。sessionがまだ無い場合だけは、届き次第もう一度試す。
+  const restoreDoneRef = useRef(false);
   useEffect(() => {
+    if (restoreDoneRef.current) return;
     // マウント後にsessionStorageから復元する(初期renderで読むとSSRのhydrationが
     // 不一致になるため)。この用途ではeffect内setStateが正当なので規則を無効化する。
     /* eslint-disable react-hooks/set-state-in-effect */
@@ -191,6 +196,7 @@ function SellWizard() {
     // (Step5で入力中のタイトル・価格をreloadで失わないため)。
     // 別カード・スナップショット無しの場合のみbackendから正が取れる状態を取得する。
     if (resumeCardId && snap?.card?.id === resumeCardId) {
+      restoreDoneRef.current = true;
       setStep(snap.step);
       setName(snap.name);
       setSeries(snap.series);
@@ -209,8 +215,9 @@ function SellWizard() {
       return;
     }
 
-    if (resumeCardId && session && !didFetchDraftRef.current) {
-      didFetchDraftRef.current = true;
+    if (resumeCardId) {
+      if (!session) return; // sessionが届き次第、再度このeffectを試す
+      restoreDoneRef.current = true;
       void (async () => {
         try {
           const draft = await fetchCardDraft(session.token, resumeCardId);
@@ -248,22 +255,26 @@ function SellWizard() {
       return;
     }
 
-    if (!resumeCardId && snap) {
-      setStep(snap.step);
-      setName(snap.name);
-      setSeries(snap.series);
-      setCardNumber(snap.cardNumber);
-      setGrade(snap.grade);
-      setHasPsa(snap.hasPsa);
-      setPsaCertNumber(snap.psaCertNumber);
-      setTitle(snap.title);
-      setDescription(snap.description);
-      setPrice(snap.price);
-      setCard(snap.card);
-      setUploadedImages(snap.uploadedImages ?? {});
-      setIsPossessionUploaded(snap.isPossessionUploaded);
-      setPsaResult(snap.psaResult);
-    }
+    // cardIdなしで開かれた場合(ヘッダーの「出品する」・一覧の「新しく出品する」等)は
+    // 常に新規の入力から始める。カード作成後はStep1でURLへcardIdを同期するため、
+    // ここに来るのは「まだカードを作成していない」場合のみであり、失うデータはない。
+    // 過去の中断分のsessionStorageスナップショットが残っていれば破棄する。
+    restoreDoneRef.current = true;
+    if (snap) clearWizard();
+    setStep(1);
+    setName("");
+    setSeries("");
+    setCardNumber("");
+    setGrade("");
+    setHasPsa(null);
+    setPsaCertNumber("");
+    setTitle("");
+    setDescription("");
+    setPrice("");
+    setCard(null);
+    setUploadedImages({});
+    setIsPossessionUploaded(false);
+    setPsaResult(null);
     setHasRestored(true);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [resumeCardId, session]);
@@ -373,6 +384,11 @@ function SellWizard() {
         }));
       setCard(created);
       setStep(2);
+      // 以降のreload・一覧の「続きから入力」からこのカードを正として再開できるよう、
+      // URLにcardIdを同期する(履歴を汚さないためreplace)。
+      if (resumeCardId !== created.id) {
+        router.replace(`/sell?cardId=${created.id}`);
+      }
     } catch (error) {
       toast.error(
         error instanceof ApiError ? error.message : "カードを登録できませんでした",
@@ -524,6 +540,8 @@ function SellWizard() {
       setIsPossessionUploaded(false);
       setPsaResult(null);
       setIsDiscardDialogOpen(false);
+      // 破棄済みカードのcardIdが残っていると、reloadで再び復元されてしまうため外す
+      if (resumeCardId) router.replace("/sell");
     } catch (error) {
       toast.error(
         error instanceof ApiError ? error.message : "破棄に失敗しました",
