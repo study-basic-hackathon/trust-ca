@@ -63,8 +63,18 @@ export async function uploadCardImage(params: {
   imageKind: CardImageKind;
   uploadContext: "listing" | "arrival";
   file: File;
+  /** 所持証明(imageKind=possession)の確認コード */
+  captureNonce?: string;
 }): Promise<UploadedCardImage> {
-  const { backendUrl, token, cardId, imageKind, uploadContext, file } = params;
+  const {
+    backendUrl,
+    token,
+    cardId,
+    imageKind,
+    uploadContext,
+    file,
+    captureNonce,
+  } = params;
   const contentType = file.type;
   const sha256 = await sha256Hex(file);
 
@@ -99,6 +109,7 @@ export async function uploadCardImage(params: {
         sha256,
         imageKind,
         uploadContext,
+        captureNonce,
       }),
     },
   );

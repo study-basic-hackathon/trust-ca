@@ -1,12 +1,28 @@
 import type { Pool } from "pg";
 import { getCardDetailById, type CardDetail } from "../db/cards.js";
 import {
+  countCompletedSalesBySeller,
   countOpenListingsBySeller,
+  countRecentListingsBySeller,
   createListing,
   getSellerLimits,
   type ListingRecord,
 } from "../db/listings.js";
+import { hasPossessionProof } from "../db/possession.js";
 import { getSellerById } from "../db/sellers.js";
+
+/** Risk Engine最小ルールの閾値(screen-design.md §6.7)。環境変数で調整可能 */
+const RISK_NEW_SELLER_AMOUNT_MINOR = BigInt(
+  process.env.RISK_NEW_SELLER_AMOUNT_MINOR ?? "50000",
+);
+const RISK_RECENT_LISTING_LIMIT = Number(
+  process.env.RISK_RECENT_LISTING_LIMIT ?? "5",
+);
+
+export type RiskEvaluation = {
+  requiresReview: boolean;
+  reasons: string[];
+};
 
 export class ListingRuleViolationError extends Error {
   constructor(
@@ -83,7 +99,11 @@ export function validateListingText(input: {
 export async function createListingForSeller(
   pool: Pool,
   input: CreateListingInput,
-): Promise<{ listing: ListingRecord; card: CardDetail }> {
+): Promise<{
+  listing: ListingRecord;
+  card: CardDetail;
+  risk: RiskEvaluation;
+}> {
   const seller = await getSellerById(pool, input.sellerId);
   if (!seller || seller.onboardingStatus !== "approved") {
     throw new ListingRuleViolationError(
@@ -121,12 +141,58 @@ export async function createListingForSeller(
     );
   }
 
+  // 所持証明(nonce付き再撮影)は全出品で必須(screen-design.md §6.1)
+  const hasProof = await hasPossessionProof(pool, input.cardId);
+  if (!hasProof) {
+    throw new ListingRuleViolationError(
+      "POSSESSION_PROOF_REQUIRED",
+      "出品には所持証明(確認コード付きの撮影)が必要です。",
+    );
+  }
+
+  // Risk Engine最小ルール(screen-design.md §6.7)
+  const risk = await evaluateListingRisk(pool, {
+    sellerId: input.sellerId,
+    priceMinor: input.priceMinor,
+    card,
+  });
+
   const listing = await createListing(pool, {
     cardId: input.cardId,
     sellerId: input.sellerId,
     title: input.title,
     description: input.description,
     priceMinor: input.priceMinor,
+    requiresReview: risk.requiresReview,
   });
-  return { listing, card };
+  return { listing, card, risk };
+}
+
+/**
+ * ルールベースの公開前審査判定。該当した出品はdraftのまま保留し、
+ * 運営者が内容確認後に公開する(事前審査の理念とUX速度の両立)。
+ */
+export async function evaluateListingRisk(
+  pool: Pool,
+  input: { sellerId: string; priceMinor: bigint; card: CardDetail },
+): Promise<RiskEvaluation> {
+  const reasons: string[] = [];
+
+  const completedSales = await countCompletedSalesBySeller(pool, input.sellerId);
+  if (completedSales === 0 && input.priceMinor > RISK_NEW_SELLER_AMOUNT_MINOR) {
+    reasons.push(
+      `取引実績のない販売者の高額出品(${RISK_NEW_SELLER_AMOUNT_MINOR.toLocaleString("ja-JP")}円超)`,
+    );
+  }
+
+  const recentListings = await countRecentListingsBySeller(pool, input.sellerId);
+  if (recentListings >= RISK_RECENT_LISTING_LIMIT) {
+    reasons.push(`短時間の大量出品(24時間で${recentListings}件目)`);
+  }
+
+  if (input.card.psaCertNumber && input.card.psaVerificationStatus !== "verified") {
+    reasons.push("PSA登録情報を自動確認できていない");
+  }
+
+  return { requiresReview: reasons.length > 0, reasons };
 }

@@ -4,7 +4,9 @@ import {
   attachLatestPsaVerification,
   CertNumberAlreadyUsedError,
   createCard,
+  getCardDetailById,
 } from "../db/cards.js";
+import { createPossessionChallenge } from "../db/possession.js";
 import { getSellerById } from "../db/sellers.js";
 import type { PaymentConfig } from "../env.js";
 import {
@@ -114,6 +116,42 @@ export function createCardsRoute(dependencies: Dependencies): Hono {
       }
       throw error;
     }
+  });
+
+  // 出品ウィザードStep2.5: 所持証明用の確認コードを発行する
+  route.post("/api/v1/cards/:cardId/possession-challenges", async (c) => {
+    const session = await resolveWalletSession(c, dependencies.walletConfig);
+    if (!session) {
+      return c.json(UNAUTHORIZED_RESPONSE, 401);
+    }
+    const card = await getCardDetailById(
+      dependencies.pool,
+      c.req.param("cardId"),
+    );
+    if (!card || card.currentOwnerId !== session.userId) {
+      return c.json(
+        {
+          error: {
+            code: "CARD_NOT_FOUND",
+            message: "カードが見つかりません。",
+          },
+        },
+        404,
+      );
+    }
+    const challenge = await createPossessionChallenge(
+      dependencies.pool,
+      card.id,
+    );
+    return c.json(
+      {
+        data: {
+          code: challenge.code,
+          expiresAt: challenge.expiresAt.toISOString(),
+        },
+      },
+      201,
+    );
   });
 
   // 出品ウィザードStep3(PSAあり): 照会結果をカードへ紐付ける

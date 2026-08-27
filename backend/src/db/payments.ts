@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { insertNotification } from "./notifications.js";
 import { appendAuditAnchorOnClient } from "./onchain-outbox.js";
 import type { Pool, PoolClient } from "pg";
 import type { Address, Hash } from "viem";
@@ -461,7 +462,7 @@ export async function markPaymentConfirmed(
       `UPDATE orders
           SET status = 'paid', paid_at = CURRENT_TIMESTAMP
         WHERE id = $1 AND status = 'payment_submitted'
-      RETURNING listing_id`,
+      RETURNING listing_id, seller_id`,
       [paymentResult.rows[0].order_id],
     );
     if (orderResult.rowCount !== 1) {
@@ -476,6 +477,13 @@ export async function markPaymentConfirmed(
     if (listingResult.rowCount !== 1) {
       throw new Error("出品をsoldへ更新できませんでした。");
     }
+    await insertNotification(client, {
+      userId: String(orderResult.rows[0].seller_id),
+      type: "order_paid",
+      title: "支払いが確定しました",
+      body: "商品を発送し、追跡番号を登録してください。",
+      orderId: String(paymentResult.rows[0].order_id),
+    });
     if (input.auditAnchor) {
       const orderId = String(paymentResult.rows[0].order_id);
       await appendAuditAnchorOnClient(client, {

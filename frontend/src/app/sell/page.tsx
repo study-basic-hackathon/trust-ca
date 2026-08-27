@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, ImagePlus, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/components/auth/auth-provider";
 import { StatusStepper, type Step } from "@/components/status-stepper";
@@ -32,13 +32,14 @@ import {
   attachPsaVerification,
   createCard,
   createListing,
+  issuePossessionChallenge,
   verifyPsaCert,
   type CardDetail,
   type PsaVerificationResult,
 } from "@/lib/api/listings";
 import { getMe } from "@/lib/api/me";
 
-type WizardStep = 1 | 2 | 3 | 4;
+type WizardStep = 1 | 2 | 3 | 4 | 5;
 
 const IMAGE_SLOTS: { kind: CardImageKind; label: string; required: boolean }[] =
   [
@@ -48,10 +49,65 @@ const IMAGE_SLOTS: { kind: CardImageKind; label: string; required: boolean }[] =
     { kind: "corner_top_left", label: "四隅(左上)", required: false },
   ];
 
+/**
+ * 出品ウィザードの再開用スナップショット。リロードや誤操作で入力・アップロード済みの
+ * 進捗が失われないよう、sessionStorageに保存する(タブを閉じると消える)。
+ * 期限付きの所持確認コードやアップロード中フラグ等の一時状態は保存しない。
+ * プレビュー用objectURLはリロードで無効になるため保存対象外(復元後はアップロード済み
+ * 表示のみになる)。
+ */
+const WIZARD_STORAGE_KEY = "trustca.sell-wizard";
+
+type WizardSnapshot = {
+  step: WizardStep;
+  name: string;
+  series: string;
+  cardNumber: string;
+  grade: string;
+  hasPsa: boolean | null;
+  psaCertNumber: string;
+  title: string;
+  description: string;
+  price: string;
+  card: CardDetail | null;
+  uploadedImages: Partial<Record<CardImageKind, UploadedCardImage>>;
+  isPossessionUploaded: boolean;
+  psaResult: PsaVerificationResult | null;
+};
+
+function loadWizard(): WizardSnapshot | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(WIZARD_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as WizardSnapshot) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveWizard(snapshot: WizardSnapshot): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(snapshot));
+  } catch {
+    // 保存不可は致命的でないため無視する
+  }
+}
+
+function clearWizard(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(WIZARD_STORAGE_KEY);
+  } catch {
+    // 無視
+  }
+}
+
 function wizardSteps(current: WizardStep): Step[] {
   const defs = [
     { key: "info", label: "カード情報" },
     { key: "images", label: "画像" },
+    { key: "possession", label: "所持確認" },
     { key: "verify", label: "検証" },
     { key: "confirm", label: "確認" },
   ];
@@ -87,12 +143,88 @@ export default function SellPage() {
   const [uploadingKind, setUploadingKind] = useState<CardImageKind | null>(
     null,
   );
+  // アップロード画像のプレビュー(ローカルFileのobjectURL。リロードで消える)
+  const [previews, setPreviews] = useState<
+    Partial<Record<CardImageKind, string>>
+  >({});
 
-  // Step3
+  // Step3(所持確認)
+  const [possessionCode, setPossessionCode] = useState<{
+    code: string;
+    expiresAt: string;
+  } | null>(null);
+  const [isPossessionUploaded, setIsPossessionUploaded] = useState(false);
+  const [isUploadingPossession, setIsUploadingPossession] = useState(false);
+
+  // Step4(検証)
   const [psaResult, setPsaResult] = useState<PsaVerificationResult | null>(
     null,
   );
   const [isVerifying, setIsVerifying] = useState(false);
+
+  // 進捗の復元はマウント後に行う(SSRのhydration不一致を避けるため初期値はデフォルト)。
+  // 復元完了までは保存を止め、デフォルト値で上書きしないようにする。
+  const [hasRestored, setHasRestored] = useState(false);
+  useEffect(() => {
+    // マウント後にsessionStorageから復元する(初期renderで読むとSSRのhydrationが
+    // 不一致になるため)。この用途ではeffect内setStateが正当なので規則を無効化する。
+    /* eslint-disable react-hooks/set-state-in-effect */
+    const snap = loadWizard();
+    if (snap) {
+      setStep(snap.step);
+      setName(snap.name);
+      setSeries(snap.series);
+      setCardNumber(snap.cardNumber);
+      setGrade(snap.grade);
+      setHasPsa(snap.hasPsa);
+      setPsaCertNumber(snap.psaCertNumber);
+      setTitle(snap.title);
+      setDescription(snap.description);
+      setPrice(snap.price);
+      setCard(snap.card);
+      setUploadedImages(snap.uploadedImages ?? {});
+      setIsPossessionUploaded(snap.isPossessionUploaded);
+      setPsaResult(snap.psaResult);
+    }
+    setHasRestored(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, []);
+
+  useEffect(() => {
+    if (!hasRestored) return;
+    saveWizard({
+      step,
+      name,
+      series,
+      cardNumber,
+      grade,
+      hasPsa,
+      psaCertNumber,
+      title,
+      description,
+      price,
+      card,
+      uploadedImages,
+      isPossessionUploaded,
+      psaResult,
+    });
+  }, [
+    hasRestored,
+    step,
+    name,
+    series,
+    cardNumber,
+    grade,
+    hasPsa,
+    psaCertNumber,
+    title,
+    description,
+    price,
+    card,
+    uploadedImages,
+    isPossessionUploaded,
+    psaResult,
+  ]);
 
   const meQuery = useQuery({
     queryKey: ["me", session?.token],
@@ -185,6 +317,12 @@ export default function SellPage() {
         file,
       });
       setUploadedImages((current) => ({ ...current, [kind]: uploaded }));
+      setPreviews((current) => {
+        const next = { ...current };
+        if (next[kind]) URL.revokeObjectURL(next[kind]!);
+        next[kind] = URL.createObjectURL(file);
+        return next;
+      });
       toast.success("画像をアップロードしました");
     } catch (error) {
       toast.error(
@@ -192,6 +330,46 @@ export default function SellPage() {
       );
     } finally {
       setUploadingKind(null);
+    }
+  }
+
+  async function requestPossessionCode() {
+    if (!card) return;
+    try {
+      const challenge = await issuePossessionChallenge(session!.token, card.id);
+      setPossessionCode(challenge);
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError
+          ? error.message
+          : "確認コードを発行できませんでした",
+      );
+    }
+  }
+
+  async function handlePossessionUpload(file: File) {
+    if (!card || !possessionCode) return;
+    setIsUploadingPossession(true);
+    try {
+      await uploadCardImage({
+        backendUrl,
+        token: session!.token,
+        cardId: card.id,
+        imageKind: "possession",
+        uploadContext: "listing",
+        file,
+        captureNonce: possessionCode.code,
+      });
+      setIsPossessionUploaded(true);
+      toast.success("所持確認の画像を受け付けました");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "アップロードに失敗しました",
+      );
+      // コードが期限切れ・使用済みの場合は再発行を促す
+      setPossessionCode(null);
+    } finally {
+      setIsUploadingPossession(false);
     }
   }
 
@@ -234,8 +412,17 @@ export default function SellPage() {
         description: description.trim() || null,
         priceMinor: price.trim(),
       });
-      toast.success("出品を公開しました");
-      router.push(`/listings/${listing.id}`);
+      clearWizard();
+      if (listing.reviewRequired) {
+        toast.info(
+          "出品を受け付けました。運営の確認後に公開されます",
+          { duration: 8000 },
+        );
+        router.push("/mypage/listings");
+      } else {
+        toast.success("出品を公開しました");
+        router.push(`/listings/${listing.id}`);
+      }
     } catch (error) {
       toast.error(
         error instanceof ApiError ? error.message : "出品に失敗しました",
@@ -410,6 +597,20 @@ export default function SellPage() {
                         />
                       )}
                     </div>
+                    {previews[slot.kind] && (
+                      // アップロードした画像のプレビュー(このセッション内のみ)
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={previews[slot.kind]}
+                        alt={`${slot.label}のプレビュー`}
+                        className="mt-3 aspect-[4/3] w-full rounded-md border object-cover"
+                      />
+                    )}
+                    {uploaded && !previews[slot.kind] && (
+                      <p className="mt-3 rounded-md border border-dashed bg-muted/40 py-4 text-center text-xs text-muted-foreground">
+                        アップロード済み
+                      </p>
+                    )}
                     <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed py-6 text-sm text-muted-foreground hover:bg-accent">
                       {uploadingKind === slot.kind ? (
                         <Loader2 className="size-4 animate-spin" aria-hidden />
@@ -441,7 +642,7 @@ export default function SellPage() {
                 onClick={() => setStep(3)}
                 disabled={!requiredImagesUploaded}
               >
-                次へ(検証)
+                次へ(所持確認)
               </Button>
             </div>
           </CardContent>
@@ -449,6 +650,73 @@ export default function SellPage() {
       )}
 
       {step === 3 && card && (
+        <Card>
+          <CardHeader>
+            <CardTitle>所持確認</CardTitle>
+            <CardDescription>
+              確認コードを紙に書き、カードと同じ写真に収めて撮影してください。盗用画像による出品を防ぐための手順です。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!possessionCode ? (
+              <Button onClick={() => void requestPossessionCode()}>
+                確認コードを発行する
+              </Button>
+            ) : (
+              <>
+                <div className="rounded-lg border-2 border-primary/40 bg-accent p-6 text-center">
+                  <p className="text-sm text-muted-foreground">確認コード</p>
+                  <p className="font-mono text-3xl font-bold tracking-widest">
+                    {possessionCode.code}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    有効期限:{" "}
+                    {new Date(possessionCode.expiresAt).toLocaleTimeString(
+                      "ja-JP",
+                    )}
+                  </p>
+                </div>
+                {isPossessionUploaded ? (
+                  <p className="flex items-center gap-2 text-sm text-success">
+                    <CheckCircle2 className="size-4" aria-hidden />
+                    所持確認の画像を受け付けました
+                  </p>
+                ) : (
+                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed py-8 text-sm text-muted-foreground hover:bg-accent">
+                    {isUploadingPossession ? (
+                      <Loader2 className="size-4 animate-spin" aria-hidden />
+                    ) : (
+                      <ImagePlus className="size-4" aria-hidden />
+                    )}
+                    コードとカードを一緒に撮影した画像を選択
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      disabled={isUploadingPossession}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void handlePossessionUpload(file);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                )}
+              </>
+            )}
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setStep(2)}>
+                戻る
+              </Button>
+              <Button onClick={() => setStep(4)} disabled={!isPossessionUploaded}>
+                次へ(検証)
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 4 && card && (
         <Card>
           <CardHeader>
             <CardTitle>カード検証</CardTitle>
@@ -508,11 +776,11 @@ export default function SellPage() {
               </Alert>
             )}
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setStep(2)}>
+              <Button variant="outline" onClick={() => setStep(3)}>
                 戻る
               </Button>
               <Button
-                onClick={() => setStep(4)}
+                onClick={() => setStep(5)}
                 disabled={Boolean(card.psaCertNumber) && !psaResult}
               >
                 次へ(確認)
@@ -522,7 +790,7 @@ export default function SellPage() {
         </Card>
       )}
 
-      {step === 4 && card && (
+      {step === 5 && card && (
         <Card>
           <CardHeader>
             <CardTitle>出品内容の確認</CardTitle>
@@ -552,7 +820,7 @@ export default function SellPage() {
               出品手数料は現在無料です。公開後、購入が入ると取引がロックされます。
             </p>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setStep(3)}>
+              <Button variant="outline" onClick={() => setStep(4)}>
                 戻る
               </Button>
               <Button onClick={() => void submitListing()} disabled={isSubmitting}>

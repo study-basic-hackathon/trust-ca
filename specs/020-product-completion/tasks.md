@@ -57,3 +57,27 @@
 - [x] T072 docs/deploy/gcp-deployment.md(Cloud Run×2(API/worker)、Cloud SQL、Firebase App Hosting、Secret Manager、env一覧、手順)
 - [x] T073 受入チェックリスト(spec.md §3)の自己検証と結果記録
 - [ ] T074 PR作成(main向け)
+
+## Phase 9: 設計追補(2026-08-21指示)
+
+- [x] T090 system-architecture §3 の5層実装状況を現状へ更新
+- [x] T091 screen-design §6(不足画面: nonce所持証明・到着後再撮影・キャンセル・紛争・公開前審査・通知欄・Risk Engine・admin sellers・一覧充実)/ §7(視覚デザイン刷新指針)
+
+## Phase 10: 機能ギャップ実装
+
+- [x] T100 nonce所持証明(backend: nonce発行/検証API + 出品ウィザードStep2.5)
+- [x] T101 到着後再撮影比較(購入者: arrival撮影→Vision解析→受領確認)
+- [x] T102 注文キャンセル(支払い前、reserved解放)
+- [x] T103 紛争フロー(購入者申告→disputed→admin処理(返金/却下)+監査イベント)
+- [x] T104 Risk Engine最小ルール+出品の公開前審査(draft保留+admin公開/却下)
+- [x] T105 通知欄(notificationsテーブル+ヘッダーベル+未読数)
+- [x] T106 admin sellers(seller_limits編集+監査記録)
+- [x] T107 一覧の価格帯・並び替え、詳細の画像拡大Dialog
+- [x] T108 テスト補強(新規API群)
+
+## Phase 11: 視覚デザイン刷新
+
+- [x] T110 トークン拡張(§7.1)+framer-motion導入
+- [x] T111 LP・商品カード・詳細・完了画面の刷新(§7.2-7.3)
+- [x] T112 全画面の統一パス+build/lint green(backend 154テスト緑)
+- [x] T113 再デプロイ(frontend/backend/worker×2/migration 0005-0006適用済み、2026-08-21)

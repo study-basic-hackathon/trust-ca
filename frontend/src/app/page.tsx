@@ -70,53 +70,65 @@ const STEPS = [
 export default function Home() {
   return (
     <main>
-      {/* ヒーロー */}
-      <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 md:grid-cols-2 md:py-24">
-        <div className="space-y-6">
-          <p className="text-sm font-semibold text-primary">
-            高額トレーディングカードのC2Cマーケットプレイス
-          </p>
-          <h1 className="text-4xl font-bold leading-tight tracking-tight md:text-5xl">
-            出品前に、
-            <br />
-            審査する。
-          </h1>
-          <p className="text-lg text-muted-foreground">
-            Trustcaは販売者の本人確認とカード検証を出品前に行う、
-            事前審査型のマーケットプレイスです。実績を待つのではなく、
-            入口で信頼をつくります。
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <Button size="lg" asChild>
-              <Link href="/listings">商品を探す</Link>
-            </Button>
-            <Button size="lg" variant="outline" asChild>
-              <Link href="/mypage/seller">販売者になる</Link>
-            </Button>
-          </div>
-        </div>
-
-        {/* 商品カードのイメージ */}
-        <Card className="mx-auto w-full max-w-sm shadow-md">
-          <CardHeader>
-            <div className="flex aspect-[3/4] items-center justify-center rounded-md bg-gradient-to-br from-accent to-secondary">
-              <ShieldCheck className="size-16 text-primary/40" aria-hidden />
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="font-semibold">リザードン HOLO 1999 / PSA 10</p>
-            <div className="flex flex-wrap gap-1.5">
-              <TrustBadge signal="seller_verified" />
-              <TrustBadge signal="psa_verified" />
-            </div>
-            <p className="text-xl font-bold tabular-nums">
-              1,200,000
-              <span className="ml-1 text-sm font-normal text-muted-foreground">
-                JPYC
-              </span>
+      {/* ヒーロー: 信頼のネイビー帯(screen-design.md §7.1) */}
+      <section className="bg-gradient-to-br from-brand-deep via-brand-deep to-primary text-white">
+        <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 md:grid-cols-2 md:py-24">
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <p className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold tracking-wide">
+              <ShieldCheck className="size-3.5" aria-hidden />
+              高額トレーディングカードのC2Cマーケットプレイス
             </p>
-          </CardContent>
-        </Card>
+            <h1 className="text-4xl font-bold leading-tight tracking-tight md:text-5xl">
+              出品前に、
+              <br />
+              審査する。
+            </h1>
+            <p className="text-lg text-white/80">
+              Trustcaは販売者の本人確認とカード検証を出品前に行う、
+              事前審査型のマーケットプレイスです。実績を待つのではなく、
+              入口で信頼をつくります。
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                size="lg"
+                className="bg-white text-brand-deep hover:bg-white/90"
+                asChild
+              >
+                <Link href="/listings">商品を探す</Link>
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                asChild
+              >
+                <Link href="/mypage/seller">販売者になる</Link>
+              </Button>
+            </div>
+          </div>
+
+          {/* 商品カードのイメージ(鑑定スラブ風) */}
+          <Card className="mx-auto w-full max-w-sm rotate-1 border-white/20 shadow-2xl transition-transform duration-300 hover:rotate-0 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <CardHeader>
+              <div className="flex aspect-[3/4] items-center justify-center rounded-md bg-gradient-to-br from-accent to-secondary">
+                <ShieldCheck className="size-16 text-primary/40" aria-hidden />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="font-semibold">リザードン HOLO 1999 / PSA 10</p>
+              <div className="flex flex-wrap gap-1.5">
+                <TrustBadge signal="seller_verified" />
+                <TrustBadge signal="psa_verified" />
+              </div>
+              <p className="text-xl font-bold tabular-nums text-foreground">
+                1,200,000
+                <span className="ml-1 text-sm font-normal text-muted-foreground">
+                  JPYC
+                </span>
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </section>
 
       {/* 課題 */}
@@ -152,7 +164,7 @@ export default function Home() {
               <div className="flex size-12 items-center justify-center rounded-full bg-primary/10">
                 <step.icon className="size-6 text-primary" aria-hidden />
               </div>
-              <p className="text-sm font-semibold text-primary">
+              <p className="text-sm font-semibold text-gold">
                 STEP {index + 1}
               </p>
               <h3 className="font-semibold">{step.title}</h3>

@@ -14,6 +14,11 @@ const listingsService = vi.hoisted(() => ({
 
 const cardImagesDb = vi.hoisted(() => ({
   listCardImagesByCard: vi.fn(),
+  listPrimaryImagesByCards: vi.fn().mockResolvedValue([]),
+}));
+
+const ordersDb = vi.hoisted(() => ({
+  releaseExpiredReservations: vi.fn().mockResolvedValue(0),
 }));
 
 const storageService = vi.hoisted(() => ({
@@ -35,6 +40,10 @@ vi.mock("../src/services/listings.js", async (importOriginal) => ({
 vi.mock("../src/db/card-images.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../src/db/card-images.js")>()),
   ...cardImagesDb,
+}));
+vi.mock("../src/db/orders.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/db/orders.js")>()),
+  ...ordersDb,
 }));
 vi.mock("../src/services/storage.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../src/services/storage.js")>()),
@@ -111,6 +120,7 @@ describe("POST /api/v1/listings", () => {
     listingsService.createListingForSeller.mockResolvedValue({
       listing: { id: listingDetail.id },
       card: {},
+      risk: { requiresReview: false, reasons: [] },
     });
     const res = await createApp().request("/api/v1/listings", {
       method: "POST",

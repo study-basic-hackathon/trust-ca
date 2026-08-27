@@ -13,6 +13,7 @@ export type ShippingAddressInput = {
 export type OrderSummary = {
   id: string;
   listingId: string;
+  cardId: string;
   buyerId: string;
   sellerId: string;
   priceMinor: string;
@@ -163,3 +164,40 @@ export const CARRIER_TRACKING_URLS: Record<string, string> = {
   sagawa: "https://k2k.sagawa-exp.co.jp/p/web/okurijosearch.do",
   japan_post: "https://trackings.post.japanpost.jp/services/srv/search/",
 };
+
+
+export function cancelOrder(
+  token: string,
+  orderId: string,
+): Promise<{ cancelled: boolean }> {
+  return api(
+    `/api/v1/orders/${encodeURIComponent(orderId)}/cancellation`,
+    { method: "POST" },
+    token,
+  );
+}
+
+export type DisputeReasonCode =
+  | "not_delivered"
+  | "not_as_described"
+  | "suspected_fake"
+  | "other";
+
+export const DISPUTE_REASON_LABELS: Record<DisputeReasonCode, string> = {
+  not_delivered: "商品が届かない",
+  not_as_described: "商品が説明と異なる",
+  suspected_fake: "偽物の疑いがある",
+  other: "その他",
+};
+
+export function openDispute(
+  token: string,
+  orderId: string,
+  input: { reasonCode: DisputeReasonCode; description: string },
+): Promise<{ disputed: boolean }> {
+  return api(
+    `/api/v1/orders/${encodeURIComponent(orderId)}/dispute`,
+    { method: "POST", body: JSON.stringify(input) },
+    token,
+  );
+}

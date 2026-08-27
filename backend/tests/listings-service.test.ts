@@ -6,6 +6,12 @@ const listingsDb = vi.hoisted(() => ({
   createListing: vi.fn(),
   countOpenListingsBySeller: vi.fn(),
   getSellerLimits: vi.fn(),
+  countCompletedSalesBySeller: vi.fn(),
+  countRecentListingsBySeller: vi.fn(),
+}));
+
+const possessionDb = vi.hoisted(() => ({
+  hasPossessionProof: vi.fn(),
 }));
 
 vi.mock("../src/db/sellers.js", async (importOriginal) => ({
@@ -19,6 +25,10 @@ vi.mock("../src/db/cards.js", async (importOriginal) => ({
 vi.mock("../src/db/listings.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../src/db/listings.js")>()),
   ...listingsDb,
+}));
+vi.mock("../src/db/possession.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/db/possession.js")>()),
+  ...possessionDb,
 }));
 
 const {
@@ -76,6 +86,9 @@ describe("createListingForSeller", () => {
       maxListingAmountMinor: "100000",
     });
     listingsDb.countOpenListingsBySeller.mockResolvedValue(0);
+    listingsDb.countCompletedSalesBySeller.mockResolvedValue(1);
+    listingsDb.countRecentListingsBySeller.mockResolvedValue(0);
+    possessionDb.hasPossessionProof.mockResolvedValue(true);
     listingsDb.createListing.mockResolvedValue({ id: "listing-1" });
   });
 
@@ -88,7 +101,29 @@ describe("createListingForSeller", () => {
       title: "リザードン HOLO",
       description: null,
       priceMinor: 50_000n,
+      requiresReview: false,
     });
+  });
+
+  it("所持証明のないカードを拒否する", async () => {
+    possessionDb.hasPossessionProof.mockResolvedValue(false);
+    await expectRuleViolation(
+      createListingForSeller({} as never, baseInput),
+      "POSSESSION_PROOF_REQUIRED",
+    );
+  });
+
+  it("取引実績のない販売者の高額出品は審査待ち(draft)にする", async () => {
+    listingsDb.countCompletedSalesBySeller.mockResolvedValue(0);
+    const result = await createListingForSeller({} as never, {
+      ...baseInput,
+      priceMinor: 60_000n,
+    });
+    expect(result.risk.requiresReview).toBe(true);
+    expect(listingsDb.createListing).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ requiresReview: true }),
+    );
   });
 
   it("eKYC未承認の販売者を拒否する", async () => {

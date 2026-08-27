@@ -8,7 +8,11 @@ import {
   listListingsBySeller,
   type ListingDetail,
 } from "../db/listings.js";
-import { listCardImagesByCard } from "../db/card-images.js";
+import {
+  listCardImagesByCard,
+  listPrimaryImagesByCards,
+} from "../db/card-images.js";
+import { releaseExpiredReservations } from "../db/orders.js";
 import type { PaymentConfig, VisionConfig } from "../env.js";
 import {
   resolveWalletSession,
@@ -108,14 +112,26 @@ export function createListingsRoute(dependencies: Dependencies): Hono {
         description: body.description,
       });
       const priceMinor = parsePriceMinor(body.priceMinor);
-      const { listing } = await createListingForSeller(dependencies.pool, {
-        sellerId: session.userId,
-        cardId: body.cardId,
-        title: text.title,
-        description: text.description,
-        priceMinor,
-      });
-      return c.json({ data: listing }, 201);
+      const { listing, risk } = await createListingForSeller(
+        dependencies.pool,
+        {
+          sellerId: session.userId,
+          cardId: body.cardId,
+          title: text.title,
+          description: text.description,
+          priceMinor,
+        },
+      );
+      return c.json(
+        {
+          data: {
+            ...listing,
+            reviewRequired: risk.requiresReview,
+            reviewReasons: risk.reasons,
+          },
+        },
+        201,
+      );
     } catch (error) {
       if (error instanceof ListingRuleViolationError) {
         const status =
@@ -140,6 +156,18 @@ export function createListingsRoute(dependencies: Dependencies): Hono {
   });
 
   route.get("/api/v1/listings", async (c) => {
+    // 放置された未払い予約を解放し、商品が自動で再公開されるようにする
+    // (買い手が明示キャンセルしなくても在庫が塞がったままにならない)。
+    // best-effort: 失敗しても一覧取得は継続する。
+    try {
+      await releaseExpiredReservations(
+        dependencies.pool,
+        dependencies.walletConfig.reservationTtlSeconds,
+      );
+    } catch (error) {
+      console.error("放置予約の解放に失敗しました", error);
+    }
+
     const rawLimit = Number(c.req.query("limit") ?? DEFAULT_PAGE_LIMIT);
     const limit = Number.isInteger(rawLimit)
       ? Math.min(Math.max(rawLimit, 1), MAX_PAGE_LIMIT)
@@ -147,20 +175,51 @@ export function createListingsRoute(dependencies: Dependencies): Hono {
     const search = c.req.query("search")?.trim() || null;
     const psaOnly = c.req.query("psaOnly") === "1";
     const cursor = decodeCursor(c.req.query("cursor"));
+    const parsePrice = (raw: string | undefined): bigint | null =>
+      raw && /^[0-9]+$/.test(raw) ? BigInt(raw) : null;
+    const rawSort = c.req.query("sort");
+    const sort =
+      rawSort === "price_asc" || rawSort === "price_desc" ? rawSort : "new";
 
     const listings = await listActiveListings(dependencies.pool, {
       limit: limit + 1,
       cursor,
       search,
       psaOnly,
+      minPriceMinor: parsePrice(c.req.query("minPrice")),
+      maxPriceMinor: parsePrice(c.req.query("maxPrice")),
+      sort,
     });
     const page = listings.slice(0, limit);
     const nextCursor =
       listings.length > limit ? encodeCursor(page[page.length - 1]) : null;
 
+    // 代表画像(front優先)を短時間有効の閲覧URLとして添付する
+    const primaryImages = await listPrimaryImagesByCards(
+      dependencies.pool,
+      page.map((listing) => listing.cardId),
+    );
+    const thumbnailUrls = new Map<string, string | null>(
+      await Promise.all(
+        primaryImages.map(
+          async (image): Promise<[string, string | null]> => [
+            image.cardId,
+            await issueDownloadUrl({
+              bucket: image.storageBucket,
+              objectKey: image.storageObject,
+              ttlSeconds: IMAGE_URL_TTL_SECONDS,
+            }).catch(() => null),
+          ],
+        ),
+      ),
+    );
+
     return c.json({
       data: {
-        items: page.map(toListingResponse),
+        items: page.map((listing) => ({
+          ...toListingResponse(listing),
+          thumbnailUrl: thumbnailUrls.get(listing.cardId) ?? null,
+        })),
         nextCursor,
       },
     });

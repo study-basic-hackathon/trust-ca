@@ -6,6 +6,7 @@ import {
   insertCardImage,
   type CardImageKind,
 } from "../db/card-images.js";
+import { consumePossessionChallenge } from "../db/possession.js";
 import type { PaymentConfig, VisionConfig } from "../env.js";
 import { sessionFromAuthorization } from "../services/session-token.js";
 import {
@@ -162,6 +163,35 @@ export function createCardImagesRoute(dependencies: Dependencies): Hono {
       return c.json(body, status);
     }
 
+    // 所持証明画像は有効な確認コード(captureNonce)を必須とする(screen-design.md §6.1)
+    let captureNonce: string | null = null;
+    if (imageKind === "possession") {
+      captureNonce =
+        typeof requestBody.captureNonce === "string"
+          ? requestBody.captureNonce.trim().toUpperCase()
+          : "";
+      if (!captureNonce) {
+        const { body, status } = errorResponse(
+          "POSSESSION_NONCE_REQUIRED",
+          "所持証明には確認コードが必要です。",
+          400,
+        );
+        return c.json(body, status);
+      }
+      const consumed = await consumePossessionChallenge(dependencies.pool, {
+        cardId,
+        code: captureNonce,
+      });
+      if (!consumed) {
+        const { body, status } = errorResponse(
+          "POSSESSION_NONCE_INVALID",
+          "確認コードが無効または期限切れです。コードを再発行してください。",
+          400,
+        );
+        return c.json(body, status);
+      }
+    }
+
     const card = await getCardById(dependencies.pool, cardId);
     if (!card) {
       const { body, status } = errorResponse(
@@ -210,6 +240,7 @@ export function createCardImagesRoute(dependencies: Dependencies): Hono {
         contentType: contentType as string,
         byteSize,
         sha256,
+      captureNonce,
       });
       return c.json(
         {

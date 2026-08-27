@@ -4,6 +4,7 @@ import { ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/auth/auth-provider";
+import { NotificationsBell } from "@/components/layout/notifications-bell";
 
 function shortAddress(address?: string) {
   return address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "";
@@ -30,6 +31,7 @@ export function Header() {
 
           {isSignedIn ? (
             <>
+              <NotificationsBell />
               <Button variant="ghost" asChild>
                 <Link href="/mypage">マイページ</Link>
               </Button>

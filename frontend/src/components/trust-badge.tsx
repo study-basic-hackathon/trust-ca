@@ -19,7 +19,7 @@ const SIGNAL_DEFS: Record<
   },
   psa_verified: {
     label: "PSA登録情報確認済み",
-    className: "border-primary/40 bg-primary/10 text-primary",
+    className: "border-gold/40 bg-gold/10 text-gold",
     Icon: BadgeCheck,
   },
   image_analyzed: {

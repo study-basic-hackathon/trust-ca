@@ -37,6 +37,8 @@ export type PaymentConfig = {
   lockTimeoutSeconds: number;
   verificationTimeoutSeconds: number;
   intentLifetimeSeconds: number;
+  /** pending_paymentのまま放置された予約を解放するまでの猶予(秒) */
+  reservationTtlSeconds: number;
   workerId: string;
   sessionSecret: string;
   sessionTtlSeconds: number;
@@ -203,6 +205,11 @@ export function getPaymentConfig(): PaymentConfig {
     intentLifetimeSeconds: positiveInteger(
       "PAYMENT_INTENT_LIFETIME_SECONDS",
       900,
+    ),
+    // intentの寿命(既定900秒)より十分長くし、支払い中の予約を誤って解放しない
+    reservationTtlSeconds: positiveInteger(
+      "ORDER_RESERVATION_TTL_SECONDS",
+      1_800,
     ),
     workerId:
       process.env.PAYMENT_WORKER_ID?.trim() ||

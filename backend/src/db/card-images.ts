@@ -90,14 +90,16 @@ export async function insertCardImage(
     contentType: string;
     byteSize: number;
     sha256: string;
+    captureNonce?: string | null;
   },
 ): Promise<CardImageRecord> {
   try {
     const result = await pool.query(
       `INSERT INTO card_images (
          id, card_id, uploaded_by_user_id, image_kind,
-         storage_bucket, storage_object, content_type, byte_size, sha256
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         storage_bucket, storage_object, content_type, byte_size, sha256,
+         capture_nonce
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         randomUUID(),
@@ -109,6 +111,7 @@ export async function insertCardImage(
         input.contentType,
         input.byteSize,
         input.sha256,
+        input.captureNonce ?? null,
       ],
     );
     return toRecord(result.rows[0]);
@@ -145,4 +148,37 @@ export async function listCardImagesByCard(
     [cardId],
   );
   return result.rows.map(toRecord);
+}
+
+
+export type PrimaryCardImage = {
+  cardId: string;
+  storageBucket: string;
+  storageObject: string;
+};
+
+/**
+ * 一覧表示用: カードごとの代表画像(front優先)を1件ずつ取得する。
+ * N+1を避けるためDISTINCT ONでまとめて引く。
+ */
+export async function listPrimaryImagesByCards(
+  pool: Pool,
+  cardIds: string[],
+): Promise<PrimaryCardImage[]> {
+  if (cardIds.length === 0) return [];
+  const result = await pool.query(
+    `SELECT DISTINCT ON (card_id)
+            card_id, storage_bucket, storage_object
+       FROM card_images
+      WHERE card_id = ANY($1::uuid[])
+      ORDER BY card_id,
+               (image_kind = 'front') DESC,
+               created_at ASC`,
+    [cardIds],
+  );
+  return result.rows.map((row) => ({
+    cardId: String(row.card_id),
+    storageBucket: String(row.storage_bucket),
+    storageObject: String(row.storage_object),
+  }));
 }

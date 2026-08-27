@@ -1,8 +1,10 @@
 import { Hono } from "hono";
 import type { Pool } from "pg";
 import {
+  cancelOrder,
   confirmDelivery,
   createOrderFromListing,
+  openDispute,
   getOrderViewById,
   getShippingAddress,
   listOrderAuditAnchors,
@@ -89,6 +91,7 @@ function toOrderResponse(order: OrderView) {
   return {
     id: order.id,
     listingId: order.listingId,
+    cardId: order.cardId,
     buyerId: order.buyerId,
     sellerId: order.sellerId,
     priceMinor: order.priceMinor,
@@ -173,6 +176,7 @@ export function createOrdersRoute(dependencies: Dependencies): Hono {
         listingId: body.listingId,
         buyerId: session.userId,
         shippingAddress,
+        reservationTtlSeconds: dependencies.walletConfig.reservationTtlSeconds,
       });
       return c.json({ data: { id: orderId } }, 201);
     } catch (error) {
@@ -257,6 +261,80 @@ export function createOrdersRoute(dependencies: Dependencies): Hono {
         })),
       },
     });
+  });
+
+  // 支払い前キャンセル(screen-design.md §6.3)
+  route.post("/api/v1/orders/:orderId/cancellation", async (c) => {
+    const session = await resolveWalletSession(c, dependencies.walletConfig);
+    if (!session) {
+      return c.json(UNAUTHORIZED_RESPONSE, 401);
+    }
+    try {
+      await cancelOrder(dependencies.pool, {
+        orderId: c.req.param("orderId"),
+        buyerId: session.userId,
+      });
+      return c.json({ data: { cancelled: true } });
+    } catch (error) {
+      if (error instanceof OrderRepositoryError) {
+        return c.json(
+          { error: { code: error.code, message: error.message } },
+          409,
+        );
+      }
+      throw error;
+    }
+  });
+
+  // 問題の報告(screen-design.md §6.4)
+  route.post("/api/v1/orders/:orderId/dispute", async (c) => {
+    const session = await resolveWalletSession(c, dependencies.walletConfig);
+    if (!session) {
+      return c.json(UNAUTHORIZED_RESPONSE, 401);
+    }
+    const body: unknown = await c.req.json().catch(() => null);
+    const reasonCode =
+      isRecord(body) && typeof body.reasonCode === "string"
+        ? body.reasonCode
+        : "";
+    const description =
+      isRecord(body) && typeof body.description === "string"
+        ? body.description.trim()
+        : "";
+    const REASONS = new Set([
+      "not_delivered",
+      "not_as_described",
+      "suspected_fake",
+      "other",
+    ]);
+    if (!REASONS.has(reasonCode) || !description || description.length > 1000) {
+      return c.json(
+        {
+          error: {
+            code: "INVALID_DISPUTE_REQUEST",
+            message: "報告理由と1000文字以内の詳細を入力してください。",
+          },
+        },
+        400,
+      );
+    }
+    try {
+      await openDispute(dependencies.pool, {
+        orderId: c.req.param("orderId"),
+        buyerId: session.userId,
+        reasonCode,
+        description,
+      });
+      return c.json({ data: { disputed: true } });
+    } catch (error) {
+      if (error instanceof OrderRepositoryError) {
+        return c.json(
+          { error: { code: error.code, message: error.message } },
+          409,
+        );
+      }
+      throw error;
+    }
   });
 
   route.post("/api/v1/orders/:orderId/shipment", async (c) => {
