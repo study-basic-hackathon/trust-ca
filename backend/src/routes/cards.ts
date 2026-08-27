@@ -4,20 +4,32 @@ import {
   attachLatestPsaVerification,
   CertNumberAlreadyUsedError,
   createCard,
+  discardCard,
   getCardDetailById,
+  listCardDraftsByOwner,
 } from "../db/cards.js";
-import { createPossessionChallenge } from "../db/possession.js";
+import {
+  listCardImagesByCard,
+  listPrimaryImagesByCards,
+} from "../db/card-images.js";
+import {
+  createPossessionChallenge,
+  hasPossessionProof,
+} from "../db/possession.js";
 import { getSellerById } from "../db/sellers.js";
 import type { PaymentConfig } from "../env.js";
 import {
   resolveWalletSession,
   UNAUTHORIZED_RESPONSE,
 } from "../middleware/wallet-session.js";
+import { issueDownloadUrl } from "../services/storage.js";
 
 type Dependencies = {
   pool: Pool;
   walletConfig: PaymentConfig;
 };
+
+const IMAGE_URL_TTL_SECONDS = 15 * 60;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -152,6 +164,113 @@ export function createCardsRoute(dependencies: Dependencies): Hono {
       },
       201,
     );
+  });
+
+  // 出品ウィザードの途中離脱・再開: まだ出品(listings)に至っていない自分のカード一覧
+  route.get("/api/v1/cards/mine", async (c) => {
+    const session = await resolveWalletSession(c, dependencies.walletConfig);
+    if (!session) {
+      return c.json(UNAUTHORIZED_RESPONSE, 401);
+    }
+    const drafts = await listCardDraftsByOwner(dependencies.pool, session.userId);
+    const primaryImages = await listPrimaryImagesByCards(
+      dependencies.pool,
+      drafts.map((card) => card.id),
+    );
+    const thumbnailUrls = new Map<string, string | null>(
+      await Promise.all(
+        primaryImages.map(
+          async (image): Promise<[string, string | null]> => [
+            image.cardId,
+            await issueDownloadUrl({
+              bucket: image.storageBucket,
+              objectKey: image.storageObject,
+              ttlSeconds: IMAGE_URL_TTL_SECONDS,
+            }).catch(() => null),
+          ],
+        ),
+      ),
+    );
+    return c.json({
+      data: {
+        items: drafts.map((card) => ({
+          ...card,
+          createdAt: card.createdAt.toISOString(),
+          thumbnailUrl: thumbnailUrls.get(card.id) ?? null,
+        })),
+      },
+    });
+  });
+
+  // 出品ウィザードの再開: 保存済みのカード情報・画像・所持確認状況をまとめて返す
+  route.get("/api/v1/cards/:cardId", async (c) => {
+    const session = await resolveWalletSession(c, dependencies.walletConfig);
+    if (!session) {
+      return c.json(UNAUTHORIZED_RESPONSE, 401);
+    }
+    const card = await getCardDetailById(dependencies.pool, c.req.param("cardId"));
+    if (!card || card.currentOwnerId !== session.userId) {
+      return c.json(
+        {
+          error: {
+            code: "CARD_NOT_FOUND",
+            message: "カードが見つかりません。",
+          },
+        },
+        404,
+      );
+    }
+    const images = await listCardImagesByCard(dependencies.pool, card.id);
+    const imageViews = await Promise.all(
+      images.map(async (image) => ({
+        id: image.id,
+        cardId: image.cardId,
+        uploadedByUserId: image.uploadedByUserId,
+        imageKind: image.imageKind,
+        contentType: image.contentType,
+        byteSize: image.byteSize,
+        sha256: image.sha256,
+        createdAt: image.createdAt.toISOString(),
+        url: await issueDownloadUrl({
+          bucket: image.storageBucket,
+          objectKey: image.storageObject,
+          ttlSeconds: IMAGE_URL_TTL_SECONDS,
+        }).catch(() => null),
+      })),
+    );
+    const possessionProof = await hasPossessionProof(dependencies.pool, card.id);
+    return c.json({
+      data: {
+        card: { ...card, createdAt: card.createdAt.toISOString() },
+        images: imageViews,
+        hasPossessionProof: possessionProof,
+      },
+    });
+  });
+
+  // 出品ウィザードの破棄: まだ出品していないカードをarchived扱いにし、一覧から外す
+  route.post("/api/v1/cards/:cardId/discard", async (c) => {
+    const session = await resolveWalletSession(c, dependencies.walletConfig);
+    if (!session) {
+      return c.json(UNAUTHORIZED_RESPONSE, 401);
+    }
+    const discarded = await discardCard(dependencies.pool, {
+      cardId: c.req.param("cardId"),
+      ownerId: session.userId,
+    });
+    if (!discarded) {
+      return c.json(
+        {
+          error: {
+            code: "CARD_DISCARD_CONFLICT",
+            message:
+              "カードを破棄できません。既に出品済みか、見つかりません。",
+          },
+        },
+        409,
+      );
+    }
+    return c.json({ data: { discarded: true } });
   });
 
   // 出品ウィザードStep3(PSAあり): 照会結果をカードへ紐付ける

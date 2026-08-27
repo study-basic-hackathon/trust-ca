@@ -124,3 +124,47 @@ export async function attachLatestPsaVerification(
   );
   return (result.rowCount ?? 0) > 0;
 }
+
+/**
+ * まだ出品(listings)に至っていない、出品ウィザード途中のカード一覧。
+ * 一覧・再開導線(mypage/listings「作成中」)用。archived(破棄済み)は除外する。
+ */
+export async function listCardDraftsByOwner(
+  pool: Pool,
+  ownerId: string,
+): Promise<CardDetail[]> {
+  const result = await pool.query(
+    `${SELECT_CARD_DETAIL}
+      WHERE c.current_owner_id = $1
+        AND c.status <> 'archived'
+        AND NOT EXISTS (SELECT 1 FROM listings l WHERE l.card_id = c.id)
+      ORDER BY c.created_at DESC`,
+    [ownerId],
+  );
+  return result.rows.map(toCardDetail);
+}
+
+/**
+ * 出品ウィザードを破棄する(cards.status='archived')。物理削除はしない
+ * (アップロード済み画像・所持確認記録の追跡可能性を保つため)。
+ * 既に出品(listings)が存在するカードは破棄できない。
+ * psa_cert_numberはcards_psa_cert_number_uq(全カード一意)の対象のため、
+ * 破棄時にクリアして同じ証明書番号での再登録(訂正)を可能にする。
+ */
+export async function discardCard(
+  pool: Pool,
+  input: { cardId: string; ownerId: string },
+): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE cards
+        SET status = 'archived',
+            psa_cert_number = NULL,
+            latest_psa_verification_id = NULL
+      WHERE id = $1
+        AND current_owner_id = $2
+        AND status <> 'archived'
+        AND NOT EXISTS (SELECT 1 FROM listings l WHERE l.card_id = cards.id)`,
+    [input.cardId, input.ownerId],
+  );
+  return (result.rowCount ?? 0) > 0;
+}

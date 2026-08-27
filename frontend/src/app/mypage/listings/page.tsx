@@ -28,7 +28,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ApiError } from "@/lib/api";
-import { closeListing, fetchMyListings } from "@/lib/api/listings";
+import {
+  closeListing,
+  discardCard,
+  fetchCardDrafts,
+  fetchMyListings,
+} from "@/lib/api/listings";
 
 const STATUS_LABELS: Record<string, string> = {
   draft: "下書き",
@@ -42,10 +47,17 @@ export default function MyListingsPage() {
   const { session, isSignedIn, isBusy, login } = useAuth();
   const queryClient = useQueryClient();
   const [closingListingId, setClosingListingId] = useState<string | null>(null);
+  const [discardingCardId, setDiscardingCardId] = useState<string | null>(null);
 
   const listingsQuery = useQuery({
     queryKey: ["my-listings", session?.token],
     queryFn: () => fetchMyListings(session!.token),
+    enabled: Boolean(session),
+  });
+
+  const draftsQuery = useQuery({
+    queryKey: ["my-card-drafts", session?.token],
+    queryFn: () => fetchCardDrafts(session!.token),
     enabled: Boolean(session),
   });
 
@@ -59,6 +71,20 @@ export default function MyListingsPage() {
     onError: (error) => {
       toast.error(
         error instanceof ApiError ? error.message : "停止に失敗しました",
+      );
+    },
+  });
+
+  const discardMutation = useMutation({
+    mutationFn: (cardId: string) => discardCard(session!.token, cardId),
+    onSuccess: () => {
+      toast.success("作成中の出品を破棄しました");
+      setDiscardingCardId(null);
+      void queryClient.invalidateQueries({ queryKey: ["my-card-drafts"] });
+    },
+    onError: (error) => {
+      toast.error(
+        error instanceof ApiError ? error.message : "破棄に失敗しました",
       );
     },
   });
@@ -85,6 +111,48 @@ export default function MyListingsPage() {
           <Link href="/sell">新しく出品する</Link>
         </Button>
       </div>
+
+      {draftsQuery.isSuccess && draftsQuery.data.items.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">作成中の出品</h2>
+          <p className="text-sm text-muted-foreground">
+            出品ウィザードを最後まで完了していないカードです。続きから入力するか、不要なら破棄してください。
+          </p>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>カード</TableHead>
+                <TableHead>作成日</TableHead>
+                <TableHead className="text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {draftsQuery.data.items.map((draft) => (
+                <TableRow key={draft.id}>
+                  <TableCell className="font-medium">{draft.name}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {new Date(draft.createdAt).toLocaleDateString("ja-JP")}
+                  </TableCell>
+                  <TableCell className="text-right space-x-2">
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/sell?cardId=${draft.id}`}>
+                        続きから入力
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDiscardingCardId(draft.id)}
+                    >
+                      破棄
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </section>
+      )}
 
       {listingsQuery.isPending && <Skeleton className="h-48 w-full" />}
 
@@ -174,6 +242,34 @@ export default function MyListingsPage() {
               disabled={closeMutation.isPending}
             >
               {closeMutation.isPending ? "停止中…" : "停止する"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={discardingCardId !== null}
+        onOpenChange={(open) => !open && setDiscardingCardId(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>作成中の出品を破棄しますか?</DialogTitle>
+            <DialogDescription>
+              入力済みのカード情報・アップロード済みの画像は破棄され、元に戻せません。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDiscardingCardId(null)}>
+              キャンセル
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() =>
+                discardingCardId && discardMutation.mutate(discardingCardId)
+              }
+              disabled={discardMutation.isPending}
+            >
+              {discardMutation.isPending ? "破棄中…" : "破棄する"}
             </Button>
           </DialogFooter>
         </DialogContent>

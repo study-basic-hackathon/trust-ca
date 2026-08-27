@@ -490,6 +490,9 @@ Cloud RunからCloud SQL for PostgreSQLへはCloud SQL Node.js Connectorまた�
 | Method | Path | 用途 | 認可 | 状態 |
 |---|---|---|---|---|
 | `POST` | `/api/v1/cards` | カード個体の登録(出品ウィザードStep1) | eKYC承認済み販売者 | 実装済み(spec 020) |
+| `GET` | `/api/v1/cards/mine` | まだ出品(listings)に至っていない自分のカード一覧(出品ウィザードの「作成中」再開導線) | カード所有者 | 実装済み |
+| `GET` | `/api/v1/cards/{cardId}` | カード詳細+アップロード済み画像+所持確認状況(出品ウィザードの再開に使用) | カード所有者 | 実装済み |
+| `POST` | `/api/v1/cards/{cardId}/discard` | 出品ウィザードの破棄(status='archived'、psa_cert_numberを解放)。listings存在時は409 | カード所有者 | 実装済み |
 | `POST` | `/api/v1/cards/{cardId}/psa-attachment` | PSA照会結果のカード紐付け | カード所有者 | 実装済み(spec 020) |
 | `GET` | `/api/v1/me` | ログイン中ユーザーの統合ビュー(user/wallet/販売者/eKYC) | wallet session | 実装済み(spec 020) |
 | `POST` | `/api/v1/listings` | 審査済みカードを出品 | eKYC承認済み販売者 | 実装済み(spec 020) |
