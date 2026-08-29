@@ -40,7 +40,7 @@ lang: ja
   <div class="member-card">
     <img class="avatar" src="https://avatars.githubusercontent.com/u/178342488?v=4" alt="WHXisWH" />
     <div class="member-name">WHXisWH</div>
-    <div class="member-bio">（ひとことコメントを記入）</div>
+    <div class="member-bio">AIで思いつきを形にするのを楽しんでいる門外漢です。<br>こうしたハッカソンに参加するたびに、<br>いつも新しい刺激をもらっています。</div>
   </div>
   <div class="member-card">
     <img class="avatar" src="https://avatars.githubusercontent.com/u/39820920?v=4" alt="Yasunari Iguchi" />
@@ -210,8 +210,8 @@ C2Cの高額トレカ売買が抱える3つの信頼問題
       <div class="reflection-name">WHXisWH</div>
     </div>
     <ul>
-      <li>（記入）</li>
-      <li>（記入）</li>
+      <li>企画段階で、ECやポケモンカード取引の課題を数多く目にした。成熟した市場に見えて、まだ最適解は出ていないと感じた。</li>
+      <li>ハッカソン終了後もこの領域に注目し続け、さらに多くの挑戦を重ねていきたい。</li>
     </ul>
   </div>
   <div class="reflection-card">
