@@ -1,5 +1,7 @@
 export type PsaConfig = {
   enabled: boolean;
+  /** 実PSA APIを呼ばずサンプルデータを返すモック。承認前アカウントでもフローを確認できる */
+  mockEnabled: boolean;
   apiBaseUrl: string;
   apiToken: string;
   timeoutMs: number;
@@ -98,6 +100,7 @@ function required(name: string): string {
 export function getPsaConfig(): PsaConfig {
   return {
     enabled: process.env.PSA_MVP_ENABLED === "true",
+    mockEnabled: process.env.PSA_MOCK_ENABLED === "true",
     apiBaseUrl: (
       process.env.PSA_API_BASE_URL ?? "https://api.psacard.com/publicapi"
     ).replace(/\/$/, ""),

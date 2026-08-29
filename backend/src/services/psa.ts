@@ -57,6 +57,8 @@ export type PsaServiceOptions = {
   apiToken: string;
   timeoutMs: number;
   cacheTtlMs: number;
+  /** 実PSA APIを呼ばずサンプルデータを返すモック(承認前アカウント向け) */
+  mockEnabled?: boolean;
   fetchImpl?: FetchLike;
   now?: () => number;
   sleep?: Sleep;
@@ -185,6 +187,18 @@ export class PsaVerificationService {
   }
 
   async verify(certNumber: string): Promise<PsaVerification> {
+    const nowMs = this.now();
+
+    // モック有効時は実APIを呼ばず、決まったサンプルデータで検証フローを閉じる。
+    // 承認前のPSAアカウントでもデモ・受入確認ができるようにするための経路。
+    if (this.options.mockEnabled) {
+      const cachedMock = this.cache.get(certNumber);
+      if (cachedMock && cachedMock.expiresAtMs > nowMs) {
+        return { ...cachedMock.result, cacheHit: true };
+      }
+      return this.storeIfCacheable(this.buildMockResult(certNumber, nowMs));
+    }
+
     if (!this.options.apiToken) {
       throw new PsaServiceError(
         "PSA_API_CONFIGURATION_ERROR",
@@ -192,7 +206,6 @@ export class PsaVerificationService {
       );
     }
 
-    const nowMs = this.now();
     const cached = this.cache.get(certNumber);
     if (cached && cached.expiresAtMs > nowMs) {
       return { ...cached.result, cacheHit: true };
@@ -319,6 +332,45 @@ export class PsaVerificationService {
       "PSA API request failed",
       lastError,
     );
+  }
+
+  /**
+   * モック用の照会結果。証明書番号がすべて0の場合のみ not_found を返し、
+   * 負のパスも確認できるようにする。それ以外は verified(サンプルカード)を返す。
+   */
+  private buildMockResult(
+    certNumber: string,
+    nowMs: number,
+  ): PsaVerification {
+    const base = createBaseResult(
+      certNumber,
+      "verified",
+      nowMs,
+      this.options.cacheTtlMs,
+    );
+    if (/^0+$/.test(certNumber)) {
+      return {
+        ...base,
+        status: "not_found",
+        reasonCode: "PSA_CERT_NOT_FOUND",
+      };
+    }
+    return {
+      ...base,
+      card: {
+        certNumber,
+        year: "1999",
+        brand: "POKEMON GAME",
+        category: "TCG Cards",
+        cardNumber: "4",
+        subject: "CHARIZARD-HOLO",
+        variety: "1ST EDITION",
+        gradeDescription: "GEM MINT",
+        cardGrade: "GEM MT 10",
+        totalPopulation: 1200,
+        populationHigher: 0,
+      },
+    };
   }
 
   private storeIfCacheable(
