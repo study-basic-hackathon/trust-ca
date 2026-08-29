@@ -41,6 +41,48 @@ function createService(fetchImpl: typeof fetch) {
   });
 }
 
+describe("PsaVerificationService モック", () => {
+  function createMockService() {
+    return new PsaVerificationService({
+      apiBaseUrl: "https://api.example.test/publicapi",
+      apiToken: "", // モックはトークン不要
+      timeoutMs: 1_000,
+      cacheTtlMs: TTL,
+      mockEnabled: true,
+      fetchImpl: vi.fn(), // 呼ばれないことを検証する
+      now: () => NOW,
+      sleep: vi.fn().mockResolvedValue(undefined),
+    });
+  }
+
+  it("実APIを呼ばずverifiedのサンプルカードを返す", async () => {
+    const fetchImpl = vi.fn();
+    const service = new PsaVerificationService({
+      apiBaseUrl: "https://api.example.test/publicapi",
+      apiToken: "",
+      timeoutMs: 1_000,
+      cacheTtlMs: TTL,
+      mockEnabled: true,
+      fetchImpl,
+      now: () => NOW,
+      sleep: vi.fn().mockResolvedValue(undefined),
+    });
+
+    const result = await service.verify("12345678");
+
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(result.status).toBe("verified");
+    expect(result.card?.certNumber).toBe("12345678");
+    expect(result.card?.subject).toContain("CHARIZARD");
+  });
+
+  it("すべて0の証明書番号はnot_foundを返す(負のパス確認)", async () => {
+    const result = await createMockService().verify("00000000");
+    expect(result.status).toBe("not_found");
+    expect(result.reasonCode).toBe("PSA_CERT_NOT_FOUND");
+  });
+});
+
 describe("normalizePsaResponse", () => {
   it("PSACertの許可済みフィールドだけをverifiedへ正規化する", () => {
     const result = normalizePsaResponse(successBody(), "12345678", NOW, TTL);

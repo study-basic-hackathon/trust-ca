@@ -38,7 +38,8 @@ export function createPsaVerificationRoute(dependencies: Dependencies): Hono {
       );
     }
 
-    if (!dependencies.config.apiToken) {
+    // モック有効時はトークン不要(実APIを呼ばないため)
+    if (!dependencies.config.mockEnabled && !dependencies.config.apiToken) {
       return c.json(
         {
           error: {

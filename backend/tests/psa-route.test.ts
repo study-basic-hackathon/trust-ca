@@ -7,6 +7,7 @@ import { PsaServiceError } from "../src/services/psa.js";
 
 const config: PsaConfig = {
   enabled: true,
+  mockEnabled: false,
   apiBaseUrl: "https://api.example.test/publicapi",
   apiToken: "secret-token",
   timeoutMs: 1_000,
