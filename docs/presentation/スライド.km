@@ -1,0 +1,169 @@
+{
+    "root": {
+        "data": {
+            "id": "dl10hivo1ww0",
+            "created": 1787964410435,
+            "text": "trust-caプレゼンテーション"
+        },
+        "children": [
+            {
+                "data": {
+                    "id": "dl10ht7lxg80",
+                    "created": 1787964432925,
+                    "text": "構成"
+                },
+                "children": [
+                    {
+                        "data": {
+                            "id": "dl10s10km9c0",
+                            "created": 1787965233555,
+                            "text": "タイトル"
+                        },
+                        "children": []
+                    },
+                    {
+                        "data": {
+                            "id": "dl10rw869gw0",
+                            "created": 1787965223131,
+                            "text": "もくじ"
+                        },
+                        "children": []
+                    },
+                    {
+                        "data": {
+                            "id": "dl10sz17db40",
+                            "created": 1787965307604,
+                            "text": "メンバー紹介（簡単に）"
+                        },
+                        "children": []
+                    },
+                    {
+                        "data": {
+                            "id": "dl10s4gf93s0",
+                            "created": 1787965241044,
+                            "text": "背景"
+                        },
+                        "children": []
+                    },
+                    {
+                        "data": {
+                            "id": "dl10sbkxwpk0",
+                            "created": 1787965256555,
+                            "text": "課題"
+                        },
+                        "children": []
+                    },
+                    {
+                        "data": {
+                            "id": "dl10sdoekww0",
+                            "created": 1787965261117,
+                            "text": "目的"
+                        },
+                        "children": []
+                    },
+                    {
+                        "data": {
+                            "id": "dl10shy313k0",
+                            "created": 1787965270410,
+                            "text": "機能(スコープ)"
+                        },
+                        "children": []
+                    },
+                    {
+                        "data": {
+                            "id": "dl10teofizc0",
+                            "created": 1787965341660,
+                            "text": "システム構成"
+                        },
+                        "children": []
+                    },
+                    {
+                        "data": {
+                            "id": "dl10ththbkw0",
+                            "created": 1787965348496,
+                            "text": "デモ"
+                        },
+                        "children": []
+                    },
+                    {
+                        "data": {
+                            "id": "dl10tmkz7a00",
+                            "created": 1787965358865,
+                            "text": "残課題"
+                        },
+                        "children": []
+                    },
+                    {
+                        "data": {
+                            "id": "dl10txl3t0o0",
+                            "created": 1787965382818,
+                            "text": "所感"
+                        },
+                        "children": []
+                    }
+                ]
+            },
+            {
+                "data": {
+                    "id": "dl10hzdq0rk0",
+                    "created": 1787964446355,
+                    "text": "お願いしたいこと"
+                },
+                "children": [
+                    {
+                        "data": {
+                            "id": "dl10i28mgcg0",
+                            "created": 1787964452577,
+                            "text": "強調の太字はかえって人間にとって見にくいので、本当に大事な部分でしか使わないこと（なくてもOKなくらい）"
+                        },
+                        "children": []
+                    },
+                    {
+                        "data": {
+                            "id": "dl10u6tju2w0",
+                            "created": 1787965402919,
+                            "text": "一方で目次の通りでは正しくプロジェクトを伝えられない場合は変更しても良い"
+                        },
+                        "children": []
+                    },
+                    {
+                        "data": {
+                            "id": "dl10itj27b40",
+                            "created": 1787964511981,
+                            "text": "初めて聞く人でもわかりやすいように、文字数をなるべく少なくする・要点を伝える"
+                        },
+                        "children": [
+                            {
+                                "data": {
+                                    "id": "dl10j8d83lk0",
+                                    "created": 1787964544280,
+                                    "text": "細かいところはトークでカバー"
+                                },
+                                "children": []
+                            }
+                        ]
+                    },
+                    {
+                        "data": {
+                            "id": "dl10jh9ad140",
+                            "created": 1787964563633,
+                            "text": "15分程度で話すスライド"
+                        },
+                        "children": []
+                    },
+                    {
+                        "data": {
+                            "id": "dl10sozsvoo0",
+                            "created": 1787965285751,
+                            "text": "図も取り入れて視覚的にわかりやすく"
+                        },
+                        "children": []
+                    }
+                ]
+            }
+        ]
+    },
+    "template": "right",
+    "theme": "fresh-blue",
+    "version": "1.4.43"
+}
