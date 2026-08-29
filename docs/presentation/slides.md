@@ -35,13 +35,61 @@ lang: ja
 ---
 
 ## メンバー紹介
-- WHXisWH
-- Yasunari Iguchi
 
+<div class="members">
+  <div class="member-card">
+    <img class="avatar" src="https://avatars.githubusercontent.com/u/178342488?v=4" alt="WHXisWH" />
+    <div class="member-name">WHXisWH</div>
+    <div class="member-bio">（ひとことコメントを記入）</div>
+  </div>
+  <div class="member-card">
+    <img class="avatar" src="https://avatars.githubusercontent.com/u/39820920?v=4" alt="Yasunari Iguchi" />
+    <div class="member-name">Yasunari Iguchi</div>
+    <div class="member-bio">運営ではありますが毎回チームメンバーとして<br>参加させていただいています。<br>今回も貴重な経験をさせていただきました。</div>
+  </div>
+</div>
+
+<style scoped>
+.members {
+  display: flex;
+  gap: 48px;
+  justify-content: center;
+  margin-top: 48px;
+}
+.member-card {
+  flex: 1;
+  max-width: 380px;
+  border: 1px solid #d0d0d0;
+  border-radius: 16px;
+  padding: 36px 28px;
+  text-align: center;
+  background: #fafafa;
+}
+.avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #dae8fc;
+  display: block;
+  margin: 0 auto 20px;
+}
+.member-name {
+  font-size: 22px;
+  font-weight: bold;
+  margin-bottom: 14px;
+}
+.member-bio {
+  font-size: 15px;
+  color: #555;
+  text-align: center;
+}
+</style>
 
 <!--
-発表者が直接紹介する前提の簡易スライドです。
-役割分担など、実際の内容に置き換えてください。
+アイコンはイニシャルのプレースホルダーです。実際の顔写真がある場合は
+avatarのdivを <img src="..."> に差し替えてください。
+フリーテキスト（member-bio）は役割・ひとことコメントなど、実際の内容に置き換えてください。
 -->
 
 ---
@@ -155,13 +203,72 @@ C2Cの高額トレカ売買が抱える3つの信頼問題
 
 ## 所感
 
-<!--
-チームとして学んだこと・苦労した点・今後に活かしたいことなどを記入してください
--->
+<div class="reflections">
+  <div class="reflection-card">
+    <div class="reflection-header">
+      <img class="avatar-sm" src="https://avatars.githubusercontent.com/u/178342488?v=4" alt="WHXisWH" />
+      <div class="reflection-name">WHXisWH</div>
+    </div>
+    <ul>
+      <li>（記入）</li>
+      <li>（記入）</li>
+    </ul>
+  </div>
+  <div class="reflection-card">
+    <div class="reflection-header">
+      <img class="avatar-sm" src="https://avatars.githubusercontent.com/u/39820920?v=4" alt="Yasunari Iguchi" />
+      <div class="reflection-name">Yasunari Iguchi</div>
+    </div>
+    <ul>
+      <li>ECをやってみたいという思いつきから、ポケモンカード取引の実情やブロックチェーンなど新しい分野を学べた</li>
+      <li>ただし1か月でのキャッチアップは難しく、これから基礎から勉強していきたい</li>
+    </ul>
+  </div>
+</div>
 
-- （記入）
-- （記入）
-- （記入）
+<style scoped>
+.reflections {
+  display: flex;
+  gap: 40px;
+  margin-top: 32px;
+}
+.reflection-card {
+  flex: 1;
+  border: 1px solid #d0d0d0;
+  border-radius: 16px;
+  padding: 24px 28px;
+  background: #fafafa;
+}
+.reflection-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.avatar-sm {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #dae8fc;
+}
+.reflection-name {
+  font-size: 18px;
+  font-weight: bold;
+}
+.reflection-card ul {
+  margin: 0;
+  padding-left: 1.2em;
+  font-size: 16px;
+}
+.reflection-card li {
+  margin-bottom: 8px;
+}
+</style>
+
+<!--
+チームとして学んだこと・苦労した点・今後に活かしたいことなどを、それぞれの欄に記入してください
+-->
 
 ---
 
