@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   UserX,
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +19,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { TrustBadge } from "@/components/trust-badge";
+import { HoloCardImage } from "@/components/holo-card-image";
 
 const CHALLENGES = [
   {
@@ -71,8 +73,16 @@ export default function Home() {
   return (
     <main>
       {/* ヒーロー: 信頼のネイビー帯(screen-design.md §7.1) */}
-      <section className="bg-gradient-to-br from-brand-deep via-brand-deep to-primary text-white">
-        <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 md:grid-cols-2 md:py-24">
+      <section className="relative overflow-hidden text-white">
+        <Image
+          src="/images/mainvisual_pc@2x.avif"
+          alt=""
+          fill
+          priority
+          className="object-cover"
+        />
+        <div className="absolute inset-0 bg-black/55" />
+        <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 md:grid-cols-2 md:py-24">
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <p className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold tracking-wide">
               <ShieldCheck className="size-3.5" aria-hidden />
@@ -108,11 +118,13 @@ export default function Home() {
           </div>
 
           {/* 商品カードのイメージ(鑑定スラブ風) */}
-          <Card className="mx-auto w-full max-w-sm rotate-1 border-white/20 shadow-2xl transition-transform duration-300 hover:rotate-0 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <Card className="mx-auto w-full max-w-sm rotate-1 border-white/20 bg-black/20 text-white shadow-2xl backdrop-blur-xl transition-transform duration-300 hover:rotate-0 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <CardHeader>
-              <div className="flex aspect-[3/4] items-center justify-center rounded-md bg-gradient-to-br from-accent to-secondary">
-                <ShieldCheck className="size-16 text-primary/40" aria-hidden />
-              </div>
+              <HoloCardImage
+                src="/images/charizard-ex-sample.jpg"
+                alt="リザードン HOLO 1999 / PSA 10 のサンプル画像"
+                priority
+              />
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="font-semibold">リザードン HOLO 1999 / PSA 10</p>
@@ -120,9 +132,9 @@ export default function Home() {
                 <TrustBadge signal="seller_verified" />
                 <TrustBadge signal="psa_verified" />
               </div>
-              <p className="text-xl font-bold tabular-nums text-foreground">
+              <p className="text-xl font-bold tabular-nums text-white">
                 1,200,000
-                <span className="ml-1 text-sm font-normal text-muted-foreground">
+                <span className="ml-1 text-sm font-normal text-white/60">
                   JPYC
                 </span>
               </p>
